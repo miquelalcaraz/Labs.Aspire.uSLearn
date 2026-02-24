@@ -1,5 +1,5 @@
-using Aspire.uSLearn.Web;
-using Aspire.uSLearn.Web.Components;
+using uSLearn.Web;
+using uSLearn.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 

@@ -9,8 +9,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Aspire.uSLearn.ApiService\Aspire.uSLearn.ApiService.csproj" />
-    <ProjectReference Include="..\Aspire.uSLearn.Web\Aspire.uSLearn.Web.csproj" />
+    <ProjectReference Include="..\uSLearn.ApiService\uSLearn.ApiService.csproj" />
+    <ProjectReference Include="..\uSLearn.Web\uSLearn.Web.csproj" />
   </ItemGroup>
 
   <ItemGroup>

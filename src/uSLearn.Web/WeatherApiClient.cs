@@ -1,4 +1,4 @@
-namespace Aspire.uSLearn.Web;
+namespace uSLearn.Web;
 
 public class WeatherApiClient(HttpClient httpClient)
 {
