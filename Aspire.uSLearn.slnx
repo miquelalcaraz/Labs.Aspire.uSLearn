@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="src/Aspire.uSLearn.ApiService/Aspire.uSLearn.ApiService.csproj" />
+  <Project Path="src/Aspire.uSLearn.AppHost/Aspire.uSLearn.AppHost.csproj" />
+  <Project Path="src/Aspire.uSLearn.ServiceDefaults/Aspire.uSLearn.ServiceDefaults.csproj" />
+  <Project Path="src/Aspire.uSLearn.Web/Aspire.uSLearn.Web.csproj" />
+</Solution>
