@@ -5,7 +5,7 @@
   </Folder>
   <Folder Name="/Solution Items/" />
   <Folder Name="/src/">
-    <Project Path="src/uSLearn.ApiService/uSLearn.ApiService.csproj" />
+    <Project Path="src/uSLearn.Accounts.API/uSLearn.Accounts.API.csproj" />
     <Project Path="src/uSLearn.AppHost/uSLearn.AppHost.csproj" />
     <Project Path="src/uSLearn.ServiceDefaults/uSLearn.ServiceDefaults.csproj" />
     <Project Path="src/uSLearn.Web/uSLearn.Web.csproj" />
