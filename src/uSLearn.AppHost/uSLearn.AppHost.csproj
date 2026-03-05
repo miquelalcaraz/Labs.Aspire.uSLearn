@@ -10,11 +10,13 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\uSLearn.Accounts.API\uSLearn.Accounts.API.csproj" />
+		<ProjectReference Include="..\uSLearn.Identity.API\uSLearn.Identity.API.csproj" />
 		<ProjectReference Include="..\uSLearn.Web\uSLearn.Web.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Aspire.Hosting.Redis" Version="13.1.2" />
+		<PackageReference Include="Aspire.Hosting.RabbitMQ" Version="13.1.1" />
+		<PackageReference Include="Aspire.Hosting.Redis" Version="13.1.1" />
 		<PackageReference Include="Aspire.Hosting.SqlServer" Version="13.1.1" />
 	</ItemGroup>
 
