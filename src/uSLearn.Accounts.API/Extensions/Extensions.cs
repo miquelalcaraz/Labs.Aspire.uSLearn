@@ -29,6 +29,9 @@ namespace uSLearn.Accounts.API.Extensions
             });
             services.AddMigration<AccountContext, AccountContextSeed>();
 
+            builder.AddRabbitMqEventBus("eventbus")
+                .AddEventBusSubscriptions();
+
             services.AddHttpContextAccessor();
 
             services.AddMediatR(cfg =>
@@ -40,6 +43,10 @@ namespace uSLearn.Accounts.API.Extensions
             services.AddScoped<IOrganizationQueries, OrganizationQueries>();
             services.AddScoped<IOrganizationRepository, OrganizationRepository>();
      
+        }
+
+        private static void AddEventBusSubscriptions(this IEventBusBuilder eventBus)
+        {
         }
     }
 }
