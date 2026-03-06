@@ -9,6 +9,7 @@
 	<ItemGroup>
 		<ProjectReference Include="..\uSLearn.ServiceDefaults\uSLearn.ServiceDefaults.csproj" />
 		<ProjectReference Include="..\EventBusRabbitMQ\EventBusRabbitMQ.csproj" />
+		<ProjectReference Include="..\IntegrationEventLogEF\IntegrationEventLogEF.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

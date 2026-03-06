@@ -6,6 +6,7 @@
   <Folder Name="/EventBus/">
     <Project Path="src/EventBus/EventBus.csproj" />
     <Project Path="src/EventBusRabbitMQ/EventBusRabbitMQ.csproj" />
+    <Project Path="src/IntegrationEventLogEF/IntegrationEventLogEF.csproj" />
   </Folder>
   <Folder Name="/Solution Items/" />
   <Folder Name="/src/">
