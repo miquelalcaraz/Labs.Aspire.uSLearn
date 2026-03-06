@@ -1,9 +1,8 @@
 ﻿using MediatR;
 
-using uSLearn.Accounts.API.Domain.SeedWork;
-using uSLearn.Accounts.API.Infrastructure;
+using uSLearn.Core.Domain.SeedWork;
 
-namespace uSLearn.Accounts.API.Infrastructure.Extensions
+namespace uSLearn.Accounts.Infrastructure.Extensions
 {
     static class MediatorExtension
     {

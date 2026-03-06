@@ -1,17 +1,19 @@
 ﻿using Microsoft.EntityFrameworkCore;
 
-using uSLearn.Accounts.API.Application.Behaviors;
-using uSLearn.Accounts.API.Application.IntegrationEvents;
-using uSLearn.Accounts.API.Application.Queries;
-using uSLearn.Accounts.API.Domain.OrganizationAggregate;
-using uSLearn.Accounts.API.Infrastructure;
-using uSLearn.Accounts.API.Infrastructure.Extensions;
-using uSLearn.Accounts.API.Infrastructure.Idempotency;
-using uSLearn.Accounts.API.Infrastructure.Repositories;
-using uSLearn.Accounts.API.Infrastructure.Seed;
-using uSLearn.IntegrationEventLogEF.Services;
+using uSLearn.Accounts.Application.Behaviors;
+using uSLearn.Accounts.Application.IntegrationEvents;
+using uSLearn.Accounts.Application.Queries;
+using uSLearn.Accounts.Domain.OrganizationAggregate;
+using uSLearn.Accounts.Infrastructure;
+using uSLearn.Accounts.Infrastructure.Idempotency;
+using uSLearn.Accounts.Infrastructure.Repositories;
+using uSLearn.Accounts.Infrastructure.Seed;
+using uSLearn.Core.EventBus.Abstractions;
+using uSLearn.Core.EventBusRabbitMQ;
+using uSLearn.Core.Infrastructure.Extensions;
+using uSLearn.Core.IntegrationEventLogEF.Services;
 
-namespace uSLearn.Accounts.API.Extensions
+namespace uSLearn.Accounts.Extensions
 {
     public static class Extensions
     {

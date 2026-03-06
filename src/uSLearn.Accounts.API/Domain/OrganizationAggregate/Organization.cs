@@ -1,8 +1,8 @@
-﻿using uSLearn.Accounts.API.Domain.Events;
-using uSLearn.Accounts.API.Domain.Exceptions;
-using uSLearn.Accounts.API.Domain.SeedWork;
+﻿using uSLearn.Accounts.Domain.Events;
+using uSLearn.Accounts.Domain.Exceptions;
+using uSLearn.Core.Domain.SeedWork;
 
-namespace uSLearn.Accounts.API.Domain.OrganizationAggregate;
+namespace uSLearn.Accounts.Domain.OrganizationAggregate;
 
 public class Organization : Entity, IAggregateRoot
 {

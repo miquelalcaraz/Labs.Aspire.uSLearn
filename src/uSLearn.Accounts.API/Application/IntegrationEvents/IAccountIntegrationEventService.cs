@@ -1,6 +1,6 @@
-﻿using uSLearn.EventBus.Events;
+﻿using uSLearn.Core.EventBus.Events;
 
-namespace uSLearn.Accounts.API.Application.IntegrationEvents;
+namespace uSLearn.Accounts.Application.IntegrationEvents;
 
 public interface IAccountIntegrationEventService
 {

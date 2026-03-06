@@ -1,9 +1,9 @@
-﻿using uSLearn.Accounts.API.Infrastructure;
-using uSLearn.EventBus.Abstractions;
-using uSLearn.EventBus.Events;
-using uSLearn.IntegrationEventLogEF.Services;
+﻿using uSLearn.Accounts.Infrastructure;
+using uSLearn.Core.EventBus.Abstractions;
+using uSLearn.Core.EventBus.Events;
+using uSLearn.Core.IntegrationEventLogEF.Services;
 
-namespace uSLearn.Accounts.API.Application.IntegrationEvents;
+namespace uSLearn.Accounts.Application.IntegrationEvents;
 
 public class AccountIntegrationEventService(IEventBus eventBus,
     AccountContext accountContext,

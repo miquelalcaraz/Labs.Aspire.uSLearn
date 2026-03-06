@@ -1,9 +1,9 @@
 ﻿using MediatR;
 
-using uSLearn.Accounts.API.Application.Queries;
+using uSLearn.Accounts.Application.Queries;
 
 
-namespace uSLearn.Accounts.API.Api
+namespace uSLearn.Accounts.Api
 {
     public class AccountsServices(
                     IMediator mediator,

@@ -1,8 +1,10 @@
-﻿
+﻿using uSLearn.Core.EventBus.Abstractions;
+using uSLearn.Core.EventBus.Extensions;
+using uSLearn.Core.EventBusRabbitMQ;
+using uSLearn.Identity.IntegrationEvents.EventHandling;
+using uSLearn.Identity.IntegrationEvents.Events;
 
-using uSLearn.Accounts.API.Domain.Events;
-
-namespace uSLearn.Identity.Api.Extensions
+namespace uSLearn.Identity.Extensions
 {
     public static class Extensions
     {

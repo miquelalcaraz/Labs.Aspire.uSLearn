@@ -1,8 +1,7 @@
-﻿
-using uSLearn.EventBus.Abstractions;
-using uSLearn.EventBus.Events;
+﻿using uSLearn.Core.EventBus.Abstractions;
+using uSLearn.Identity.IntegrationEvents.Events;
 
-namespace uSLearn.Accounts.API.Domain.Events
+namespace uSLearn.Identity.IntegrationEvents.EventHandling
 {
     public class OrganizationCreatedIntegrationEventHandler : IIntegrationEventHandler<OrganizationCreatedIntegrationEvent>
     {

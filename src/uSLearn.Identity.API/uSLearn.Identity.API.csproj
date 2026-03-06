@@ -3,6 +3,7 @@
 	<PropertyGroup>
 		<TargetFramework>net10.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
+		<RootNamespace>uSLearn.Identity</RootNamespace>
 		<Nullable>enable</Nullable>
 	</PropertyGroup>
 
@@ -10,7 +11,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\uSLearn.ServiceDefaults\uSLearn.ServiceDefaults.csproj" />
-		<ProjectReference Include="..\EventBusRabbitMQ\EventBusRabbitMQ.csproj" />
+		<ProjectReference Include="..\Core.EventBusRabbitMQ\Core.EventBusRabbitMQ.csproj" />
 	</ItemGroup>
 
 </Project>

@@ -1,4 +1,4 @@
-﻿namespace uSLearn.Accounts.API.Domain.Exceptions
+﻿namespace uSLearn.Accounts.Domain.Exceptions
 {
     public class AccountDomainException : Exception
     {

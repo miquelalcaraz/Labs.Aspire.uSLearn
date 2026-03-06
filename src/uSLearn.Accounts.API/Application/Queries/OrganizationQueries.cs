@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 
-using uSLearn.Accounts.API.Infrastructure;
-namespace uSLearn.Accounts.API.Application.Queries;
+using uSLearn.Accounts.Infrastructure;
+namespace uSLearn.Accounts.Application.Queries;
 
 
 public class OrganizationQueries(AccountContext context) : IOrganizationQueries

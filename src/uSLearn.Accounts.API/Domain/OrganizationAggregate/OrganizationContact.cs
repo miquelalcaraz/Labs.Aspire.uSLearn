@@ -1,8 +1,8 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-using uSLearn.Accounts.API.Domain.SeedWork;
+using uSLearn.Core.Domain.SeedWork;
 
-namespace uSLearn.Accounts.API.Domain.OrganizationAggregate;
+namespace uSLearn.Accounts.Domain.OrganizationAggregate;
 
 public partial class OrganizationContact : Entity
 {

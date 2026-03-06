@@ -1,16 +1,14 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 
-using uSLearn.Accounts.API.Application.Commands;
-using uSLearn.Accounts.API.Application.Queries;
-using uSLearn.Accounts.API.Domain.OrganizationAggregate;
+using uSLearn.Accounts.Application.Commands;
+using uSLearn.Accounts.Application.Queries;
+using uSLearn.Accounts.Domain.OrganizationAggregate;
 
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
-
-using OrganizationViewModel = uSLearn.Accounts.API.Application.Queries.Organization;
+using OrganizationViewModel = uSLearn.Accounts.Application.Queries.Organization;
 
 
-namespace uSLearn.Accounts.API.Api
+namespace uSLearn.Accounts.Api
 {
     public static class AccountsApi
     {

@@ -1,19 +1,25 @@
 <Solution>
+  <Folder Name="/Core/">
+    <Project Path="src/Core.Domain/Core.Domain.csproj" />
+    <Project Path="src/Core.Infrastructure/Core.Infrastructure.csproj" />
+    <Project Path="src/Core.EventBus/Core.EventBus.csproj" />
+    <Project Path="src/Core.EventBusRabbitMQ/Core.EventBusRabbitMQ.csproj" />
+    <Project Path="src/Core.IntegrationEventLogEF/Core.IntegrationEventLogEF.csproj" />
+  </Folder>
   <Folder Name="/docs/">
     <File Path="docs/Stage.01-project creation.md" />
     <File Path="README.md" />
   </Folder>
-  <Folder Name="/EventBus/">
-    <Project Path="src/EventBus/EventBus.csproj" />
-    <Project Path="src/EventBusRabbitMQ/EventBusRabbitMQ.csproj" />
-    <Project Path="src/IntegrationEventLogEF/IntegrationEventLogEF.csproj" />
-  </Folder>
-  <Folder Name="/Solution Items/" />
-  <Folder Name="/src/">
-    <Project Path="src/uSLearn.Accounts.API/uSLearn.Accounts.API.csproj" />
+  <Folder Name="/src/" />
+  <Folder Name="/src/Aspire/">
     <Project Path="src/uSLearn.AppHost/uSLearn.AppHost.csproj" />
-    <Project Path="src/uSLearn.Identity.API/uSLearn.Identity.API.csproj" />
     <Project Path="src/uSLearn.ServiceDefaults/uSLearn.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/">
+    <Project Path="src/uSLearn.Accounts.API/uSLearn.Accounts.API.csproj" />
+    <Project Path="src/uSLearn.Identity.API/uSLearn.Identity.API.csproj" />
+  </Folder>
+  <Folder Name="/src/WebApp/">
     <Project Path="src/uSLearn.Web/uSLearn.Web.csproj" />
   </Folder>
 </Solution>

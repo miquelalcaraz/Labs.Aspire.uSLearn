@@ -1,5 +1,5 @@
-using uSLearn.Accounts.API.Api;
-using uSLearn.Accounts.API.Extensions;
+using uSLearn.Accounts.Api;
+using uSLearn.Accounts.Extensions;
 using uSLearn.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -29,9 +29,8 @@ if (app.Environment.IsDevelopment())
 {
     app.UseDefaultOpenApi();
 }
- 
+
 app.MapDefaultEndpoints();
 
 app.Run();
 
- 

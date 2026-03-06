@@ -2,11 +2,11 @@
 
 using MediatR;
 
-using uSLearn.Accounts.API.Domain.OrganizationAggregate;
+using uSLearn.Accounts.Domain.OrganizationAggregate;
 
 
 
-namespace uSLearn.Accounts.API.Application.Commands;
+namespace uSLearn.Accounts.Application.Commands;
 
 [DataContract]
 public record CreateOrganizationCommand : IRequest<bool>

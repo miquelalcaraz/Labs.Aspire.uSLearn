@@ -1,7 +1,6 @@
-﻿using uSLearn.Accounts.API.Domain.Exceptions;
-using uSLearn.Accounts.API.Infrastructure;
+﻿using uSLearn.Accounts.Domain.Exceptions;
 
-namespace uSLearn.Accounts.API.Infrastructure.Idempotency;
+namespace uSLearn.Accounts.Infrastructure.Idempotency;
 
 public class RequestManager : IRequestManager
 {

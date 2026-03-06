@@ -1,9 +1,9 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-using uSLearn.Accounts.API.Domain.OrganizationAggregate;
+using uSLearn.Accounts.Domain.OrganizationAggregate;
 
-namespace uSLearn.Accounts.API.Infrastructure.EntityConfigurations;
+namespace uSLearn.Accounts.Infrastructure.EntityConfigurations;
 
 internal sealed class OrganizationConfiguration : IEntityTypeConfiguration<Organization>
 {

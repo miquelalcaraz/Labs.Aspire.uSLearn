@@ -1,9 +1,9 @@
 ﻿using MediatR;
 
-using uSLearn.Accounts.API.Infrastructure.Idempotency;
-using uSLearn.EventBus.Extensions;
+using uSLearn.Accounts.Infrastructure.Idempotency;
+using uSLearn.Core.EventBus.Extensions;
 
-namespace uSLearn.Accounts.API.Application.Commands;
+namespace uSLearn.Accounts.Application.Commands;
 
 /// <summary>
 /// Provides a base implementation for handling duplicate request and ensuring idempotent updates, in the cases where
@@ -94,9 +94,9 @@ public abstract class IdentifiedCommandHandler<T, R> : IRequestHandler<Identifie
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, 
+                _logger.LogError(ex,
                     "Failed to process command {CommandName} with RequestId {RequestId}",
-                    typeof(T).Name, 
+                    typeof(T).Name,
                     message.Id);
                 throw;
             }

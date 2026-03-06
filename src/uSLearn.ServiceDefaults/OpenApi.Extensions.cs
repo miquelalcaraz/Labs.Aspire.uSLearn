@@ -8,8 +8,6 @@ using Microsoft.Extensions.Hosting;
 
 using Scalar.AspNetCore;
 
-using uSLearn.ServiceDefaults;
-
 namespace uSLearn.ServiceDefaults
 {
     public static partial class Extensions
