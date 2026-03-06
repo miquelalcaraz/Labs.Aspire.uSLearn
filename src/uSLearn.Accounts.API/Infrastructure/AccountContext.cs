@@ -1,15 +1,15 @@
 ﻿using System.Data;
 
-using uSLearn.Accounts.API.Infrastructure.EntityConfigurations;
-
 using MediatR;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
-using uSLearn.Accounts.API.Domain.OrganizationAggregate;
-using uSLearn.Accounts.API.Domain.SeedWork;
+using uSLearn.Accounts.API.Domain.OrganizationAggregate; 
+using uSLearn.Accounts.API.Infrastructure.EntityConfigurations;
 using uSLearn.Accounts.API.Infrastructure.Extensions;
+using uSLearn.Accounts.API.Domain.SeedWork;
+using uSLearn.IntegrationEventLogEF;
 
 namespace uSLearn.Accounts.API.Infrastructure
 {
@@ -42,6 +42,8 @@ namespace uSLearn.Accounts.API.Infrastructure
             modelBuilder.HasDefaultSchema("account");
             modelBuilder.ApplyConfiguration(new OrganizationConfiguration());
             modelBuilder.ApplyConfiguration(new OrganizationContactConfiguration());
+            modelBuilder.ApplyConfiguration(new ClientRequestConfiguration());
+            modelBuilder.UseIntegrationEventLogs();
 
         }
 

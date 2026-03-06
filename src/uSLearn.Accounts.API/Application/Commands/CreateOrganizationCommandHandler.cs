@@ -2,13 +2,14 @@
 using MediatR;
 
 using uSLearn.Accounts.API.Domain.OrganizationAggregate;
+using uSLearn.Accounts.API.Infrastructure.Idempotency;
 
 
 
 
 namespace uSLearn.Accounts.API.Application.Commands;
 
-public class CreateOrganizationCommandHandler: IRequestHandler<CreateOrganizationCommand, bool>
+public class CreateOrganizationCommandHandler : IRequestHandler<CreateOrganizationCommand, bool>
 {
     private readonly IMediator _mediator;
     private readonly IOrganizationRepository _organizationRepository;
@@ -32,7 +33,22 @@ public class CreateOrganizationCommandHandler: IRequestHandler<CreateOrganizatio
 
 }
 
+// Use for Idempotency in Command process
+public class CreateOrganizationIdentifiedCommandHandler : IdentifiedCommandHandler<CreateOrganizationCommand, bool>
+{
+    public CreateOrganizationIdentifiedCommandHandler(
+        IMediator mediator,
+        IRequestManager requestManager,
+        ILogger<IdentifiedCommandHandler<CreateOrganizationCommand, bool>> logger)
+        : base(mediator, requestManager, logger)
+    {
+    }
 
+    protected override bool CreateResultForDuplicateRequest()
+    {
+        return true; // Ignore duplicate requests for processing order.
+    }
+}
 public record OrganizationCreatedDTO
 {
     public Guid Id { get; init; }

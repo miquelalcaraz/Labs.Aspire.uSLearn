@@ -1,12 +1,15 @@
 ﻿using Microsoft.EntityFrameworkCore;
 
 using uSLearn.Accounts.API.Application.Behaviors;
+using uSLearn.Accounts.API.Application.IntegrationEvents;
 using uSLearn.Accounts.API.Application.Queries;
 using uSLearn.Accounts.API.Domain.OrganizationAggregate;
 using uSLearn.Accounts.API.Infrastructure;
 using uSLearn.Accounts.API.Infrastructure.Extensions;
+using uSLearn.Accounts.API.Infrastructure.Idempotency;
 using uSLearn.Accounts.API.Infrastructure.Repositories;
 using uSLearn.Accounts.API.Infrastructure.Seed;
+using uSLearn.IntegrationEventLogEF.Services;
 
 namespace uSLearn.Accounts.API.Extensions
 {
@@ -29,6 +32,10 @@ namespace uSLearn.Accounts.API.Extensions
             });
             services.AddMigration<AccountContext, AccountContextSeed>();
 
+            // Add the integration services that consume the DbContext
+            services.AddTransient<IIntegrationEventLogService, IntegrationEventLogService<AccountContext>>();
+            services.AddTransient<IAccountIntegrationEventService, AccountIntegrationEventService>();
+
             builder.AddRabbitMqEventBus("eventbus")
                 .AddEventBusSubscriptions();
 
@@ -38,11 +45,13 @@ namespace uSLearn.Accounts.API.Extensions
             {
                 cfg.RegisterServicesFromAssemblyContaining(typeof(Program));
                 cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
+                cfg.AddOpenBehavior(typeof(TransactionBehavior<,>));
             });
 
             services.AddScoped<IOrganizationQueries, OrganizationQueries>();
             services.AddScoped<IOrganizationRepository, OrganizationRepository>();
-     
+            services.AddScoped<IRequestManager, RequestManager>();
+
         }
 
         private static void AddEventBusSubscriptions(this IEventBusBuilder eventBus)

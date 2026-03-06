@@ -6,4 +6,5 @@ rem dotnet ef migrations add Initial -c QltSystemDBContext -o  Persistence/Migra
 rem dotnet ef migrations add --startup-project uSLearn.Account.ApiService --context AccountContext Initial
 
 
-dotnet ef migrations add Initial -c AccountContext -o  Infrastructure/Migrations
+rem dotnet ef migrations add Initial -c AccountContext -o  Infrastructure/Migrations
+dotnet ef migrations add Add_Account_EventLog -c AccountContext -o  Infrastructure/Migrations

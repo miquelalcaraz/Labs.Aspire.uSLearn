@@ -1,11 +1,11 @@
-using uSLearn.Accounts.API.Application.Commands;
-using uSLearn.Accounts.API.Application.Queries;
-
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 
-using uSLearn.Accounts.API.Infrastructure.Extensions;
+using uSLearn.Accounts.API.Application.Commands;
+using uSLearn.Accounts.API.Application.Queries;
 using uSLearn.Accounts.API.Domain.OrganizationAggregate;
+
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
 using OrganizationViewModel = uSLearn.Accounts.API.Application.Queries.Organization;
 
@@ -24,9 +24,17 @@ namespace uSLearn.Accounts.API.Api
         }
 
         public static async Task<Results<Ok, BadRequest<string>>> CreateOrganizationAsync(
+            [FromHeader(Name = "x-requestid")] Guid requestId,
             CreateOrganizationRequest request,
             [AsParameters] AccountsServices services)
         {
+            if (requestId == Guid.Empty)
+            {
+                return TypedResults.BadRequest("Empty GUID is not valid for request ID");
+            }
+
+
+
             var createOrganizationCommand = new CreateOrganizationCommand(
                 request.TaxIdNumber,
                 request.Name,
@@ -39,7 +47,9 @@ namespace uSLearn.Accounts.API.Api
                 request.OrganizationType,
                 request.TaxNumberType);
 
-            var result = await services.Mediator.Send(createOrganizationCommand);
+            var identifiedCommand = new IdentifiedCommand<CreateOrganizationCommand, bool>(createOrganizationCommand, requestId);
+
+            var result = await services.Mediator.Send(identifiedCommand);
 
             if (result)
             {

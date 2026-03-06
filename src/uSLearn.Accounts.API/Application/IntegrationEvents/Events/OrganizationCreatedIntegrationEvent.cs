@@ -2,7 +2,7 @@
 
 using uSLearn.EventBus.Events;
 
-namespace uSLearn.Accounts.API.Domain.Events
+namespace uSLearn.Accounts.API.Application.IntegrationEvents.Events
 {
     public record OrganizationCreatedIntegrationEvent(
         Guid TenantId,

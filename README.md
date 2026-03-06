@@ -85,26 +85,31 @@ src/
 
 El desarrollo se divide en fases documentadas individualmente:
 
-| Stage | Descripción |
-| --- | --- |
-| Stage.01 | Creación del proyecto base |
-| Stage.02 | Implementación de Eventos de Dominio |
-| Stage.03 | Eventos de Integración + Idempotencia |
-| Stage.04 | Identity con Duende |
-| Stage.05 | WebApp Blazor + Radzen |
-| Stage.06 | Webhooks |
+| Stage | Descripción | Estado |
+| --- | --- | --- |
+| **Stage.01** | Creación del proyecto base | ✅ Completado |
+| **Stage.02** | Implementación de Eventos de Dominio | ✅ Completado |
+| **Stage.03** | **Eventos de Integración + Idempotencia** | 🚧 En progreso |
+| ↳ Stage.03-1 | Eventos de Integración con RabbitMQ | ✅ Completado |
+| ↳ Stage.03-2 | Idempotencia y Transaccionalidad (Comandos) | ✅ Completado |
+| ↳ Stage.03-3 | Idempotencia en Event Handlers | 📋 Planificado |
+| **Stage.04** | Identity con Duende IdentityServer | 📋 Planificado |
+| **Stage.05** | WebApp Blazor + Radzen | 📋 Planificado |
+| **Stage.06** | Webhooks y extensibilidad | 📋 Planificado |
 
-Cada etapa tendrá su documentación en:
+### 📚 Documentación Disponible
+
+Cada etapa tiene su documentación detallada en:
 
 ```
-/docs/Stage.XX-<name>.md
+/docs/Stage.XX-N-<name>.md
 ```
 
-Ejemplo:
-
-```
-docs/Stage.01-project creation.md
-```
+**Documentos principales:**
+- [`docs/Stage.01-project creation.md`](docs/Stage.01-project%20creation.md) - Setup inicial con .NET Aspire
+- [`docs/Stage.03-2-Idempotencia.md`](docs/Stage.03-2-Idempotencia.md) - Implementación de patrones transaccionales
+- [`docs/Stage.03-Patrones-Arquitectonicos.md`](docs/Stage.03-Patrones-Arquitectonicos.md) - Guía detallada de patrones
+- [`docs/RESUMEN-Stage.03.md`](docs/RESUMEN-Stage.03.md) - Resumen ejecutivo del Stage.03
 
 ---
 
