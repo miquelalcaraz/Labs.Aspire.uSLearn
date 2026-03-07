@@ -34,9 +34,9 @@ namespace uSLearn.Identity.Extensions
 
             services.AddHttpContextAccessor();
 
-            // Register repositories (in-memory for now)
-            services.AddSingleton<ITenantRepository, InMemoryTenantRepository>();
-            services.AddSingleton<IUserRepository, InMemoryUserRepository>();
+            // Register repositories (EF Core-based)
+            services.AddScoped<ITenantRepository, TenantRepository>();
+            services.AddScoped<IUserRepository, UserRepository>();
 
             // Register services
             services.AddSingleton<IPasswordGenerator, PasswordGenerator>();
