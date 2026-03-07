@@ -5,13 +5,13 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
-using uSLearn.Accounts.API.Domain.OrganizationAggregate; 
-using uSLearn.Accounts.API.Infrastructure.EntityConfigurations;
-using uSLearn.Accounts.API.Infrastructure.Extensions;
-using uSLearn.Accounts.API.Domain.SeedWork;
-using uSLearn.IntegrationEventLogEF;
+using uSLearn.Accounts.Domain.OrganizationAggregate;
+using uSLearn.Accounts.Infrastructure.EntityConfigurations;
+using uSLearn.Accounts.Infrastructure.Extensions;
+using uSLearn.Core.Domain.SeedWork;
+using uSLearn.Core.IntegrationEventLogEF;
 
-namespace uSLearn.Accounts.API.Infrastructure
+namespace uSLearn.Accounts.Infrastructure
 {
     public class AccountContext : DbContext, IUnitOfWork
     {

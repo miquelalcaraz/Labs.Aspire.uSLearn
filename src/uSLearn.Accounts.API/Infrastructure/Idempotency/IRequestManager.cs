@@ -1,4 +1,4 @@
-﻿namespace uSLearn.Accounts.API.Infrastructure.Idempotency;
+﻿namespace uSLearn.Accounts.Infrastructure.Idempotency;
 
 public interface IRequestManager
 {

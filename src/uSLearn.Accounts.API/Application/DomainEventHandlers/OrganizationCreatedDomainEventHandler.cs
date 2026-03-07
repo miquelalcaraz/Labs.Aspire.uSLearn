@@ -1,12 +1,11 @@
 ﻿using MediatR;
 
-using uSLearn.Accounts.API.Application.IntegrationEvents;
-using uSLearn.Accounts.API.Application.IntegrationEvents.Events;
-using uSLearn.Accounts.API.Domain.Events;
-using uSLearn.Accounts.API.Domain.OrganizationAggregate;
-using uSLearn.EventBus.Abstractions;
+using uSLearn.Accounts.Application.IntegrationEvents;
+using uSLearn.Accounts.Application.IntegrationEvents.Events;
+using uSLearn.Accounts.Domain.Events;
+using uSLearn.Accounts.Domain.OrganizationAggregate;
 
-namespace uSLearn.Accounts.API.Application.DomainEventHandlers
+namespace uSLearn.Accounts.Application.DomainEventHandlers
 {
     public class OrganizationCreatedDomainEventHandler : INotificationHandler<OrganizationCreatedDomainEvent>
     {

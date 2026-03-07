@@ -1,6 +1,6 @@
 
 using uSLearn.Identity.Api;
-using uSLearn.Identity.Api.Extensions;
+using uSLearn.Identity.Extensions;
 using uSLearn.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);

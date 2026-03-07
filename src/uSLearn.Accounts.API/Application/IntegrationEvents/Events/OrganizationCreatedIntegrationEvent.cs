@@ -1,8 +1,6 @@
-﻿using MediatR;
+﻿using uSLearn.Core.EventBus.Events;
 
-using uSLearn.EventBus.Events;
-
-namespace uSLearn.Accounts.API.Application.IntegrationEvents.Events
+namespace uSLearn.Accounts.Application.IntegrationEvents.Events
 {
     public record OrganizationCreatedIntegrationEvent(
         Guid TenantId,
@@ -10,6 +8,6 @@ namespace uSLearn.Accounts.API.Application.IntegrationEvents.Events
         string Name,
         string LegalName,
         string TaxNumber,
-        string CountryCode) :  IntegrationEvent;
+        string CountryCode) : IntegrationEvent;
 
 }

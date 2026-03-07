@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace uSLearn.Accounts.API.Infrastructure.Idempotency;
+namespace uSLearn.Accounts.Infrastructure.Idempotency;
 
 public class ClientRequest
 {

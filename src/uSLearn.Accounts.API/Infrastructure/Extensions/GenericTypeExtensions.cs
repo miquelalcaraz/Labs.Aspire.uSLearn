@@ -1,4 +1,4 @@
-﻿namespace uSLearn.Accounts.API.Infrastructure.Extensions
+﻿namespace uSLearn.Accounts.Infrastructure.Extensions
 {
     public static class GenericTypeExtensions
     {

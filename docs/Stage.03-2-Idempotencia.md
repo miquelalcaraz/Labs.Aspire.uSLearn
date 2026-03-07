@@ -624,7 +624,7 @@ services.AddScoped<IRequestManager, RequestManager>();
 
 ```xml
 <ItemGroup>
-    <ProjectReference Include="..\IntegrationEventLogEF\IntegrationEventLogEF.csproj" />
+    <ProjectReference Include="..\Core.IntegrationEventLogEF\IntegrationEventLogEF.csproj" />
 </ItemGroup>
 ```
 

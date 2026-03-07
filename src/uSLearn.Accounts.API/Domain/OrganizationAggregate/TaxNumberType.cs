@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace uSLearn.Accounts.API.Domain.OrganizationAggregate
+namespace uSLearn.Accounts.Domain.OrganizationAggregate
 {
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public enum TaxNumberType

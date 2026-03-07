@@ -3,11 +3,10 @@
 using MediatR;
 
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
-using uSLearn.Accounts.API.Application.IntegrationEvents;
-using uSLearn.Accounts.API.Infrastructure;
-using uSLearn.EventBus.Extensions;
+using uSLearn.Accounts.Application.IntegrationEvents;
+using uSLearn.Accounts.Infrastructure;
+using uSLearn.Core.EventBus.Extensions;
 
 public class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse> where TRequest : IRequest<TResponse>
 {

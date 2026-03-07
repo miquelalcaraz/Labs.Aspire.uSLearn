@@ -1,6 +1,6 @@
 ﻿using MediatR;
 
-namespace uSLearn.Accounts.API.Application.Commands;
+namespace uSLearn.Accounts.Application.Commands;
 
 public class IdentifiedCommand<T, R> : IRequest<R>
     where T : IRequest<R>

@@ -1,7 +1,6 @@
-﻿using uSLearn.Accounts.API.Infrastructure;
-using uSLearn.Accounts.API.Infrastructure.Extensions;
+﻿using uSLearn.Core.Infrastructure.Extensions;
 
-namespace uSLearn.Accounts.API.Infrastructure.Seed
+namespace uSLearn.Accounts.Infrastructure.Seed
 {
     public class AccountContextSeed : IDbSeeder<AccountContext>
     {

@@ -1,6 +1,6 @@
 ﻿using MediatR;
 
-namespace uSLearn.Accounts.API.Domain.Events
+namespace uSLearn.Accounts.Domain.Events
 {
     public record OrganizationCreatedDomainEvent(
         Guid TenantId,

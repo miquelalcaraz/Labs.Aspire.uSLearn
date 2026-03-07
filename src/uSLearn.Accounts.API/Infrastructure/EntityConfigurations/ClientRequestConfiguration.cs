@@ -1,9 +1,9 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-using uSLearn.Accounts.API.Infrastructure.Idempotency;
+using uSLearn.Accounts.Infrastructure.Idempotency;
 
-namespace uSLearn.Accounts.API.Infrastructure.EntityConfigurations;
+namespace uSLearn.Accounts.Infrastructure.EntityConfigurations;
 
 internal sealed class ClientRequestConfiguration : IEntityTypeConfiguration<ClientRequest>
 {

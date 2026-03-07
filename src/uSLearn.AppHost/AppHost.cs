@@ -14,10 +14,13 @@ var sqlserver = builder.AddSqlServer("sqlserver", sqlPassword, 1444)
 
 //Databases
 var accountDb = sqlserver.AddDatabase("accountDb");
+var identityDb = sqlserver.AddDatabase("identitydb");
 
 var identity = builder.AddProject<Projects.uSLearn_Identity_API>("identity")
    .WithHttpHealthCheck("/health")
-   .WithReference(rabbitMq).WaitFor(rabbitMq);
+    .WithReference(identityDb)
+    .WaitFor(identityDb)
+    .WithReference(rabbitMq).WaitFor(rabbitMq);
 
 var apiService = builder.AddProject<Projects.uSLearn_Accounts_API>("apiservice")
     .WithHttpHealthCheck("/health")

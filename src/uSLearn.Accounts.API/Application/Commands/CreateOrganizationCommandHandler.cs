@@ -1,13 +1,13 @@
 ﻿
 using MediatR;
 
-using uSLearn.Accounts.API.Domain.OrganizationAggregate;
-using uSLearn.Accounts.API.Infrastructure.Idempotency;
+using uSLearn.Accounts.Domain.OrganizationAggregate;
+using uSLearn.Accounts.Infrastructure.Idempotency;
 
 
 
 
-namespace uSLearn.Accounts.API.Application.Commands;
+namespace uSLearn.Accounts.Application.Commands;
 
 public class CreateOrganizationCommandHandler : IRequestHandler<CreateOrganizationCommand, bool>
 {

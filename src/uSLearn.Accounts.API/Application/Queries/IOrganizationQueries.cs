@@ -1,4 +1,4 @@
-﻿namespace uSLearn.Accounts.API.Application.Queries;
+﻿namespace uSLearn.Accounts.Application.Queries;
 
 public interface IOrganizationQueries
 {

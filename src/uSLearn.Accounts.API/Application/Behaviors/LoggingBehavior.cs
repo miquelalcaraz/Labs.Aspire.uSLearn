@@ -1,8 +1,8 @@
 ﻿using MediatR;
 
-using uSLearn.Accounts.API.Infrastructure.Extensions;
+using uSLearn.Accounts.Infrastructure.Extensions;
 
-namespace uSLearn.Accounts.API.Application.Behaviors
+namespace uSLearn.Accounts.Application.Behaviors
 {
     public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse> where TRequest : IRequest<TResponse>
     {

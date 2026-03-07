@@ -1,6 +1,6 @@
-﻿using uSLearn.Accounts.API.Domain.SeedWork;
+﻿using uSLearn.Core.Domain.SeedWork;
 
-namespace uSLearn.Accounts.API.Domain.OrganizationAggregate;
+namespace uSLearn.Accounts.Domain.OrganizationAggregate;
 
 public class Address : ValueObject
 {
@@ -10,7 +10,7 @@ public class Address : ValueObject
     public string? PostalCode { get; private set; } = null!;
     public string City { get; private set; } = null!;
     public string? Street { get; private set; } = null!;
-     
+
     protected Address() { }
 
     public static Address Create(string country, string countryCode, string? state, string? postalCode, string city, string? street)

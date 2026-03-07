@@ -1,7 +1,7 @@
-﻿using uSLearn.Accounts.API.Domain.OrganizationAggregate;
-using uSLearn.Accounts.API.Domain.SeedWork;
+﻿using uSLearn.Accounts.Domain.OrganizationAggregate;
+using uSLearn.Core.Domain.SeedWork;
 
-namespace uSLearn.Accounts.API.Infrastructure.Repositories
+namespace uSLearn.Accounts.Infrastructure.Repositories
 {
     public class OrganizationRepository : IOrganizationRepository
     {

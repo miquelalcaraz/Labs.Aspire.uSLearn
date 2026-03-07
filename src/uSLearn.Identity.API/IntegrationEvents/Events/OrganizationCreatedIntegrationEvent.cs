@@ -1,8 +1,6 @@
-﻿ 
+﻿using uSLearn.Core.EventBus.Events;
 
-using uSLearn.EventBus.Events;
-
-namespace uSLearn.Accounts.API.Domain.Events
+namespace uSLearn.Identity.IntegrationEvents.Events
 {
     public record OrganizationCreatedIntegrationEvent(
         Guid TenantId,
@@ -10,6 +8,6 @@ namespace uSLearn.Accounts.API.Domain.Events
         string Name,
         string LegalName,
         string TaxNumber,
-        string CountryCode) :  IntegrationEvent;
+        string CountryCode) : IntegrationEvent;
 
 }
