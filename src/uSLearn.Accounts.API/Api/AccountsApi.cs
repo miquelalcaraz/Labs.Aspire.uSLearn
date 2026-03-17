@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using uSLearn.Accounts.Application.Commands;
 using uSLearn.Accounts.Application.Queries;
 using uSLearn.Accounts.Domain.OrganizationAggregate;
+using uSLearn.Accounts.Infrastructure.Extensions;
 
 using OrganizationViewModel = uSLearn.Accounts.Application.Queries.Organization;
 
@@ -26,14 +27,22 @@ namespace uSLearn.Accounts.Api
             CreateOrganizationRequest request,
             [AsParameters] AccountsServices services)
         {
+            services.Logger.LogInformation(
+                "Sending command: {CommandName} - {IdProperty}: {CommandId}",
+                request.GetGenericTypeName(),
+                nameof(request.TaxIdNumber),
+                request.TaxIdNumber); //don't log the request as it has CC number
+
             if (requestId == Guid.Empty)
             {
+                services.Logger.LogWarning("Invalid IntegrationEvent - RequestId is missing - {@IntegrationEvent}", request);
                 return TypedResults.BadRequest("Empty GUID is not valid for request ID");
             }
 
 
-
-            var createOrganizationCommand = new CreateOrganizationCommand(
+            using (services.Logger.BeginScope(new List<KeyValuePair<string, object>> { new("IdentifiedCommandId", requestId) }))
+            {
+                var createOrganizationCommand = new CreateOrganizationCommand(
                 request.TaxIdNumber,
                 request.Name,
                 request.LegalName,
@@ -45,17 +54,28 @@ namespace uSLearn.Accounts.Api
                 request.OrganizationType,
                 request.TaxNumberType);
 
-            var identifiedCommand = new IdentifiedCommand<CreateOrganizationCommand, bool>(createOrganizationCommand, requestId);
+                var identifiedCommand = new IdentifiedCommand<CreateOrganizationCommand, bool>(createOrganizationCommand, requestId);
 
-            var result = await services.Mediator.Send(identifiedCommand);
+                var result = await services.Mediator.Send(identifiedCommand);
 
-            if (result)
-            {
+                services.Logger.LogInformation(
+                        "Sending command: {CommandName} - {IdProperty}: {CommandId} ({@Command})",
+                        identifiedCommand.GetGenericTypeName(),
+                        nameof(identifiedCommand.Id),
+                        identifiedCommand.Id,
+                        identifiedCommand);
+
+                if (result)
+                {
+                    services.Logger.LogInformation("CreateOrderCommand succeeded - RequestId: {RequestId}", requestId);
+                }
+                else
+                {
+                    services.Logger.LogWarning("CreateOrderCommand failed - RequestId: {RequestId}", requestId);
+                    return TypedResults.BadRequest("Failed to create organization");
+                }
+
                 return TypedResults.Ok();
-            }
-            else
-            {
-                return TypedResults.BadRequest("Failed to create organization");
             }
         }
 

@@ -1,9 +1,12 @@
 ﻿using Microsoft.EntityFrameworkCore;
 
+using uSLearn.Core.Application.Abstractions;
+using uSLearn.Core.Application.Behaviors;
 using uSLearn.Core.EventBus.Abstractions;
 using uSLearn.Core.EventBus.Extensions;
 using uSLearn.Core.EventBusRabbitMQ;
 using uSLearn.Core.Infrastructure.Extensions;
+using uSLearn.Core.Infrastructure.Http;
 using uSLearn.Core.IntegrationEventLogEF.Services;
 using uSLearn.Identity.Infrastructure;
 using uSLearn.Identity.IntegrationEvents.EventHandling;
@@ -34,7 +37,16 @@ namespace uSLearn.Identity.Extensions
             builder.AddRabbitMqEventBus("eventbus")
                     .AddEventBusSubscriptions();
 
+            // Register HTTP context accessor and request context abstraction
             services.AddHttpContextAccessor();
+            services.AddScoped<IRequestContextAccessor, HttpRequestContextAccessor>();
+
+            // Add MediatR with LoggingBehavior (when Identity has commands/queries)
+            // services.AddMediatR(cfg =>
+            // {
+            //     cfg.RegisterServicesFromAssemblyContaining(typeof(Program));
+            //     cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
+            // });
 
             // Register repositories (EF Core-based)
             services.AddScoped<ITenantRepository, TenantRepository>();

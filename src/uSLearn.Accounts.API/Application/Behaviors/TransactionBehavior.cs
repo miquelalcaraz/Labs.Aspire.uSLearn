@@ -32,7 +32,7 @@ public class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior<TReque
         {
             if (_dbContext.HasActiveTransaction)
             {
-                return await next();
+                return await next(cancellationToken);
             }
 
             var strategy = _dbContext.Database.CreateExecutionStrategy();
@@ -46,7 +46,7 @@ public class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior<TReque
                 {
                     _logger.LogInformation("Begin transaction {TransactionId} for {CommandName} ({@Command})", transaction.TransactionId, typeName, request);
 
-                    response = await next();
+                    response = await next(cancellationToken);
 
                     _logger.LogInformation("Commit transaction {TransactionId} for {CommandName}", transaction.TransactionId, typeName);
 

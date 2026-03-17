@@ -13,6 +13,7 @@
 		<ProjectReference Include="..\Core.EventBusRabbitMQ\Core.EventBusRabbitMQ.csproj" />
 		<ProjectReference Include="..\Core.IntegrationEventLogEF\Core.IntegrationEventLogEF.csproj" />
 		<ProjectReference Include="..\Core.Infrastructure\Core.Infrastructure.csproj" />
+		<ProjectReference Include="..\uSLearn.Core.Application\uSLearn.Core.Application.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

@@ -25,6 +25,7 @@
 		<ProjectReference Include="..\Core.IntegrationEventLogEF\Core.IntegrationEventLogEF.csproj" />
 		<ProjectReference Include="..\uSLearn.ServiceDefaults\uSLearn.ServiceDefaults.csproj" />
 		<ProjectReference Include="..\Core.EventBusRabbitMQ\Core.EventBusRabbitMQ.csproj" />
+		<ProjectReference Include="..\uSLearn.Core.Application\uSLearn.Core.Application.csproj" />
 	</ItemGroup>
 
 

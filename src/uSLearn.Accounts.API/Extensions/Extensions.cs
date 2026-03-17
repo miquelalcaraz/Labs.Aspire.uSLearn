@@ -1,6 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
 
-using uSLearn.Accounts.Application.Behaviors;
 using uSLearn.Accounts.Application.IntegrationEvents;
 using uSLearn.Accounts.Application.Queries;
 using uSLearn.Accounts.Domain.OrganizationAggregate;
@@ -8,9 +7,12 @@ using uSLearn.Accounts.Infrastructure;
 using uSLearn.Accounts.Infrastructure.Idempotency;
 using uSLearn.Accounts.Infrastructure.Repositories;
 using uSLearn.Accounts.Infrastructure.Seed;
+using uSLearn.Core.Application.Abstractions;
+using uSLearn.Core.Application.Behaviors;
 using uSLearn.Core.EventBus.Abstractions;
 using uSLearn.Core.EventBusRabbitMQ;
 using uSLearn.Core.Infrastructure.Extensions;
+using uSLearn.Core.Infrastructure.Http;
 using uSLearn.Core.IntegrationEventLogEF.Services;
 
 namespace uSLearn.Accounts.Extensions
@@ -41,12 +43,14 @@ namespace uSLearn.Accounts.Extensions
             builder.AddRabbitMqEventBus("eventbus")
                 .AddEventBusSubscriptions();
 
+            // Register HTTP context accessor and request context abstraction
             services.AddHttpContextAccessor();
+            services.AddScoped<IRequestContextAccessor, HttpRequestContextAccessor>();
 
             services.AddMediatR(cfg =>
             {
                 cfg.RegisterServicesFromAssemblyContaining(typeof(Program));
-                cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
+                cfg.AddOpenBehavior(typeof(LoggingBehavior<,>)); // From Core.Application
                 cfg.AddOpenBehavior(typeof(TransactionBehavior<,>));
             });
 
