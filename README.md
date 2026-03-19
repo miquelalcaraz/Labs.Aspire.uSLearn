@@ -120,6 +120,7 @@ Cada etapa tiene su documentación detallada en:
 - [`docs/Stage.03-Patrones-Arquitectonicos.md`](docs/Stage.03-Patrones-Arquitectonicos.md) - Guía detallada de patrones arquitectónicos
 - [`docs/Stage.04-1-Logging.md`](docs/Stage.04-1-Logging.md) - Logging enriquecido con structured logging
 - [`docs/Stage.04-2-Validations.md`](docs/Stage.04-2-Validations.md) - Validaciones con FluentValidation y manejo de excepciones
+- [`docs/Stage.04-3-Telemetry.md`](docs/Stage.04-3-Telemetry.md) - Telemetría con OpenTelemetry (traces, metrics, distributed tracing)
 
 ---
 

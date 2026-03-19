@@ -1,5 +1,6 @@
 ﻿using MediatR;
 
+using uSLearn.Core.Application.Telemetry;
 using uSLearn.Core.Domain.SeedWork;
 
 namespace uSLearn.Accounts.Infrastructure.Extensions
@@ -20,7 +21,15 @@ namespace uSLearn.Accounts.Infrastructure.Extensions
                 .ForEach(entity => entity.Entity.ClearDomainEvents());
 
             foreach (var domainEvent in domainEvents)
+            {
+                var eventType = domainEvent.GetType().Name;
+
+                // Record domain event publication metric
+                ApplicationDiagnostics.DomainEventsPublished.Add(1,
+                    new KeyValuePair<string, object?>("event_type", eventType));
+
                 await mediator.Publish(domainEvent);
+            }
         }
     }
 }
