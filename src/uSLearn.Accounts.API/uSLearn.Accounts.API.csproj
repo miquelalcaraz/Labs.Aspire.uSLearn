@@ -13,10 +13,12 @@
 		<ProjectReference Include="..\Core.EventBusRabbitMQ\Core.EventBusRabbitMQ.csproj" />
 		<ProjectReference Include="..\Core.IntegrationEventLogEF\Core.IntegrationEventLogEF.csproj" />
 		<ProjectReference Include="..\Core.Infrastructure\Core.Infrastructure.csproj" />
-		<ProjectReference Include="..\uSLearn.Core.Application\uSLearn.Core.Application.csproj" />
+		<ProjectReference Include="..\Core.Application\Core.Application.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
+		<PackageReference Include="FluentValidation" Version="12.1.1" />
+		<PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
 		<PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.3" />
 		<PackageReference Include="MediatR" Version="14.0.0" />
 		<PackageReference Include="Asp.Versioning.Http" Version="8.1.1" />

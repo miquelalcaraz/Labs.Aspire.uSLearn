@@ -11,6 +11,6 @@
 		<PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.15.0" />
 	</ItemGroup>
 	<ItemGroup>
-	  <ProjectReference Include="..\uSLearn.Core.Application\uSLearn.Core.Application.csproj" />
+	  <ProjectReference Include="..\Core.Application\Core.Application.csproj" />
 	</ItemGroup>
 </Project>

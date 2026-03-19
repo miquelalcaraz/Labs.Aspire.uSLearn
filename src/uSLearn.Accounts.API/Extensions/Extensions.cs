@@ -1,4 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using FluentValidation;
+
+using Microsoft.EntityFrameworkCore;
 
 using uSLearn.Accounts.Application.IntegrationEvents;
 using uSLearn.Accounts.Application.Queries;
@@ -47,11 +49,17 @@ namespace uSLearn.Accounts.Extensions
             services.AddHttpContextAccessor();
             services.AddScoped<IRequestContextAccessor, HttpRequestContextAccessor>();
 
+            // Register FluentValidation validators
+            services.AddValidatorsFromAssemblyContaining<Program>();
+
             services.AddMediatR(cfg =>
             {
                 cfg.RegisterServicesFromAssemblyContaining(typeof(Program));
-                cfg.AddOpenBehavior(typeof(LoggingBehavior<,>)); // From Core.Application
-                cfg.AddOpenBehavior(typeof(TransactionBehavior<,>));
+
+                // Order matters: Logging → Validation → Transaction → Handler
+                cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));       // 1. Observability
+                cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));    // 2. Validation (early exit)
+                cfg.AddOpenBehavior(typeof(TransactionBehavior<,>));   // 3. Transaction (only if valid)
             });
 
             services.AddScoped<IOrganizationQueries, OrganizationQueries>();

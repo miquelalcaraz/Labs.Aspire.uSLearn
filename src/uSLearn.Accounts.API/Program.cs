@@ -1,5 +1,6 @@
 using uSLearn.Accounts.Api;
 using uSLearn.Accounts.Extensions;
+using uSLearn.Accounts.Infrastructure.Middleware;
 using uSLearn.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,7 +19,8 @@ builder.AddDefaultOpenApi(withApiVersioning);
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-app.UseExceptionHandler();
+// Global exception handler - must be first in pipeline to catch all unhandled exceptions
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 // Register API endpoints (available in all environments)
 var accounts = app.NewVersionedApi("accounts");
