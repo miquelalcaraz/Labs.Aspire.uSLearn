@@ -1,5 +1,7 @@
 ﻿
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Sockets;
 using System.Text;
@@ -19,6 +21,7 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
 
+using uSLearn.Core.Application.Telemetry;
 using uSLearn.Core.EventBus.Abstractions;
 using uSLearn.Core.EventBus.Events;
 
@@ -44,6 +47,15 @@ public sealed class RabbitMQEventBus(
     {
         var routingKey = @event.GetType().Name;
 
+        using var activity = ApplicationDiagnostics.ActivitySource.StartActivity(
+            name: $"Publish {routingKey}",
+            kind: ActivityKind.Producer);
+
+        activity?.SetTag("messaging.system", "rabbitmq");
+        activity?.SetTag("messaging.destination", ExchangeName);
+        activity?.SetTag("messaging.rabbitmq.routing_key", routingKey);
+        activity?.SetTag("event.id", @event.Id);
+
         if (logger.IsEnabled(LogLevel.Trace))
         {
             logger.LogTrace("Creating RabbitMQ channel to publish event: {EventId} ({EventName})", @event.Id, routingKey);
@@ -62,37 +74,49 @@ public sealed class RabbitMQEventBus(
 
         var body = SerializeMessage(@event);
 
-        await _pipeline.Execute(async () =>
+        try
         {
-            var properties = new BasicProperties()
+            // ExecuteAsync (not Execute) so that asynchronous publish failures are retried too
+            await _pipeline.ExecuteAsync(async _ =>
             {
-                DeliveryMode = DeliveryModes.Persistent
-            };
+                var properties = new BasicProperties()
+                {
+                    DeliveryMode = DeliveryModes.Persistent
+                };
 
+                InjectTraceContext(activity ?? Activity.Current, properties);
 
-            if (logger.IsEnabled(LogLevel.Trace))
-            {
-                logger.LogTrace("Publishing event to RabbitMQ: {EventId}", @event.Id);
-            }
+                if (logger.IsEnabled(LogLevel.Trace))
+                {
+                    logger.LogTrace("Publishing event to RabbitMQ: {EventId}", @event.Id);
+                }
 
-            try
-            {
                 await channel.BasicPublishAsync(
                     exchange: ExchangeName,
                     routingKey: routingKey,
                     mandatory: true,
                     basicProperties: properties,
                     body: body);
-            }
-            catch (Exception)
-            {
-                lock (logger)
-                {
-                    logger.LogError("Failed to publish event to RabbitMQ after {RetryCount} retries: {EventId}", options.Value.RetryCount, @event.Id);
-                }
-                throw;
-            }
-        });
+            });
+
+            ApplicationDiagnostics.IntegrationEventsPublished.Add(1,
+                new KeyValuePair<string, object?>("event_type", routingKey),
+                new KeyValuePair<string, object?>("success", "true"));
+
+            activity?.SetTag("messaging.success", true);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to publish event to RabbitMQ after {RetryCount} retries: {EventId}", options.Value.RetryCount, @event.Id);
+
+            ApplicationDiagnostics.IntegrationEventsPublished.Add(1,
+                new KeyValuePair<string, object?>("event_type", routingKey),
+                new KeyValuePair<string, object?>("success", "false"));
+
+            activity?.SetTag("messaging.success", false);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            throw;
+        }
     }
 
 
@@ -110,7 +134,7 @@ public sealed class RabbitMQEventBus(
 
         try
         {
-            await ProcessEvent(eventName, message);
+            await ProcessEvent(eventName, message, eventArgs.BasicProperties);
         }
         catch (Exception ex)
         {
@@ -124,30 +148,76 @@ public sealed class RabbitMQEventBus(
         await _consumerChannel.BasicAckAsync(eventArgs.DeliveryTag, multiple: false);
     }
 
-    private async Task ProcessEvent(string eventName, string message)
+    private async Task ProcessEvent(string eventName, string message, IReadOnlyBasicProperties properties)
     {
+        // Start distributed tracing activity (Consumer) as a child of the producer's trace, if propagated
+        using var activity = ApplicationDiagnostics.ActivitySource.StartActivity(
+            $"Process {eventName}",
+            ActivityKind.Consumer,
+            ExtractTraceContext(properties));
+
+        activity?.SetTag("messaging.system", "rabbitmq");
+        activity?.SetTag("messaging.source", ExchangeName);
+        activity?.SetTag("messaging.rabbitmq.routing_key", eventName);
+        activity?.SetTag("event.type", eventName);
+
         if (logger.IsEnabled(LogLevel.Trace))
         {
             logger.LogTrace("Processing RabbitMQ event: {EventName}", eventName);
         }
 
-        await using var scope = serviceProvider.CreateAsyncScope();
-
-        if (!_subscriptionInfo.EventTypes.TryGetValue(eventName, out var eventType))
+        try
         {
-            logger.LogWarning("Unable to resolve event type for event name {EventName}", eventName);
-            return;
+            await using var scope = serviceProvider.CreateAsyncScope();
+
+            if (!_subscriptionInfo.EventTypes.TryGetValue(eventName, out var eventType))
+            {
+                logger.LogWarning("Unable to resolve event type for event name {EventName}", eventName);
+                activity?.SetTag("event.resolved", false);
+                return;
+            }
+
+            activity?.SetTag("event.resolved", true);
+
+            // Deserialize the event
+            var integrationEvent = DeserializeMessage(message, eventType);
+            activity?.SetTag("event.id", integrationEvent.Id);
+
+            // REVIEW: This could be done in parallel
+
+            var handlerCount = 0;
+            // Get all the handlers using the event type as the key
+            foreach (var handler in scope.ServiceProvider.GetKeyedServices<IIntegrationEventHandler>(eventType))
+            {
+                handlerCount++;
+                await handler.Handle(integrationEvent);
+            }
+
+            activity?.SetTag("event.handler_count", handlerCount);
+
+            // Record successful processing metric
+            ApplicationDiagnostics.IntegrationEventsReceived.Add(1,
+                new KeyValuePair<string, object?>("event_type", eventName),
+                new KeyValuePair<string, object?>("success", "true"));
+
+            activity?.SetTag("messaging.success", true);
+
+            logger.LogInformation("Successfully processed event {EventType} with {HandlerCount} handler(s)", eventName, handlerCount);
         }
-
-        // Deserialize the event
-        var integrationEvent = DeserializeMessage(message, eventType);
-
-        // REVIEW: This could be done in parallel
-
-        // Get all the handlers using the event type as the key
-        foreach (var handler in scope.ServiceProvider.GetKeyedServices<IIntegrationEventHandler>(eventType))
+        catch (Exception ex)
         {
-            await handler.Handle(integrationEvent);
+            logger.LogError(ex, "Error processing event {EventType}", eventName);
+
+            // Record failed processing metric
+            ApplicationDiagnostics.IntegrationEventsReceived.Add(1,
+                new KeyValuePair<string, object?>("event_type", eventName),
+                new KeyValuePair<string, object?>("success", "false"));
+
+            activity?.SetTag("messaging.success", false);
+            activity?.SetTag("error.type", ex.GetType().FullName);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+
+            throw;
         }
     }
 
@@ -241,6 +311,37 @@ public sealed class RabbitMQEventBus(
     public Task StopAsync(CancellationToken cancellationToken)
     {
         return Task.CompletedTask;
+    }
+
+    // Writes the W3C trace context (traceparent/tracestate) into the message headers
+    internal static void InjectTraceContext(Activity? activity, BasicProperties properties)
+    {
+        DistributedContextPropagator.Current.Inject(activity, properties, static (carrier, key, value) =>
+        {
+            var props = (BasicProperties)carrier!;
+            props.Headers ??= new Dictionary<string, object?>();
+            props.Headers[key] = value;
+        });
+    }
+
+    // Reads the W3C trace context from the message headers (RabbitMQ delivers header values as byte[])
+    internal static ActivityContext ExtractTraceContext(IReadOnlyBasicProperties properties)
+    {
+        DistributedContextPropagator.Current.ExtractTraceIdAndState(properties.Headers,
+            static (object? carrier, string fieldName, out string? fieldValue, out IEnumerable<string>? fieldValues) =>
+            {
+                fieldValues = null;
+                fieldValue = null;
+
+                if (carrier is IDictionary<string, object?> headers && headers.TryGetValue(fieldName, out var raw))
+                {
+                    fieldValue = raw is byte[] bytes ? Encoding.UTF8.GetString(bytes) : raw?.ToString();
+                }
+            },
+            out var traceParent,
+            out var traceState);
+
+        return ActivityContext.TryParse(traceParent, traceState, isRemote: true, out var context) ? context : default;
     }
 
     private static ResiliencePipeline CreateResiliencePipeline(int retryCount)

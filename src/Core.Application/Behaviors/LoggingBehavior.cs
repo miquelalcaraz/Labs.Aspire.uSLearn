@@ -5,6 +5,7 @@ using MediatR;
 using Microsoft.Extensions.Logging;
 
 using uSLearn.Core.Application.Abstractions;
+using uSLearn.Core.Application.Telemetry;
 
 namespace uSLearn.Core.Application.Behaviors;
 
@@ -33,6 +34,15 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
         var requestId = _contextAccessor?.RequestId ?? "N/A";
         var correlationId = _contextAccessor?.CorrelationId ?? "N/A";
 
+        // Start distributed tracing activity
+        using var activity = ApplicationDiagnostics.ActivitySource.StartActivity(
+            name: $"Command {commandName}",
+            kind: ActivityKind.Internal);
+
+        activity?.SetTag("command.name", commandName);
+        activity?.SetTag("request.id", requestId);
+        activity?.SetTag("correlation.id", correlationId);
+
         using var scope = _logger.BeginScope(new Dictionary<string, object>
         {
             ["CommandName"] = commandName,
@@ -47,16 +57,31 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
 
         var stopwatch = Stopwatch.StartNew();
         TResponse response;
+        var success = false;
 
         try
         {
             response = await next(cancellationToken);
             stopwatch.Stop();
+            success = true;
 
             var elapsedMs = stopwatch.ElapsedMilliseconds;
 
+            // Record metrics
+            ApplicationDiagnostics.CommandsProcessed.Add(1, 
+                new KeyValuePair<string, object?>("command_type", commandName),
+                new KeyValuePair<string, object?>("success", "true"));
+
+            ApplicationDiagnostics.CommandDuration.Record(elapsedMs,
+                new KeyValuePair<string, object?>("command_type", commandName),
+                new KeyValuePair<string, object?>("success", "true"));
+
+            activity?.SetTag("command.success", true);
+            activity?.SetTag("command.duration_ms", elapsedMs);
+
             if (elapsedMs > SlowCommandThresholdMs)
             {
+                activity?.SetTag("command.slow", true);
                 _logger.LogWarning(
                     "Command {CommandName} took {ElapsedMilliseconds}ms (threshold: {ThresholdMs}ms) - RequestId: {RequestId}",
                     commandName,
@@ -78,12 +103,29 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
         catch (Exception ex)
         {
             stopwatch.Stop();
+            success = false;
+
+            var elapsedMs = stopwatch.ElapsedMilliseconds;
+
+            // Record failure metrics
+            ApplicationDiagnostics.CommandsProcessed.Add(1,
+                new KeyValuePair<string, object?>("command_type", commandName),
+                new KeyValuePair<string, object?>("success", "false"));
+
+            ApplicationDiagnostics.CommandDuration.Record(elapsedMs,
+                new KeyValuePair<string, object?>("command_type", commandName),
+                new KeyValuePair<string, object?>("success", "false"));
+
+            activity?.SetTag("command.success", false);
+            activity?.SetTag("command.duration_ms", elapsedMs);
+            activity?.SetTag("error.type", ex.GetType().FullName);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
 
             _logger.LogError(
                 ex,
                 "Error handling command {CommandName} after {ElapsedMilliseconds}ms - RequestId: {RequestId}",
                 commandName,
-                stopwatch.ElapsedMilliseconds,
+                elapsedMs,
                 requestId);
 
             throw;

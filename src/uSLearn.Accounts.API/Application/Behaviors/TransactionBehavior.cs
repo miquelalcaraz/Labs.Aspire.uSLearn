@@ -1,4 +1,4 @@
-﻿
+﻿using System.Diagnostics;
 
 using MediatR;
 
@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 using uSLearn.Accounts.Application.IntegrationEvents;
 using uSLearn.Accounts.Infrastructure;
+using uSLearn.Core.Application.Telemetry;
 using uSLearn.Core.EventBus.Extensions;
 
 public class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse> where TRequest : IRequest<TResponse>
@@ -28,14 +29,23 @@ public class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior<TReque
         var response = default(TResponse);
         var typeName = request.GetGenericTypeName();
 
+        // Start transaction telemetry activity
+        using var activity = ApplicationDiagnostics.ActivitySource.StartActivity(
+            name: $"Transaction {typeName}",
+            kind: ActivityKind.Internal);
+
+        activity?.SetTag("transaction.command", typeName);
+
         try
         {
             if (_dbContext.HasActiveTransaction)
             {
+                activity?.SetTag("transaction.nested", true);
                 return await next(cancellationToken);
             }
 
             var strategy = _dbContext.Database.CreateExecutionStrategy();
+            var stopwatch = Stopwatch.StartNew();
             var attempt = 0;
             Guid transactionId = default;
 
@@ -50,6 +60,9 @@ public class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior<TReque
                 await using var transaction = await _dbContext.BeginTransactionAsync();
                 using (_logger.BeginScope(new List<KeyValuePair<string, object>> { new("TransactionContext", transaction.TransactionId) }))
                 {
+                    activity?.SetTag("transaction.id", transaction.TransactionId);
+                    activity?.SetTag("transaction.attempt", attempt);
+
                     try
                     {
                         _logger.LogInformation("Begin transaction {TransactionId} for {CommandName} ({@Command})", transaction.TransactionId, typeName, request);
@@ -74,11 +87,31 @@ public class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior<TReque
             // Publish outside the execution strategy: a transient failure here must not re-run the committed command
             await _accountIntegrationEventService.PublishEventsThroughEventBusAsync(transactionId);
 
+            stopwatch.Stop();
+            var elapsedMs = stopwatch.Elapsed.TotalMilliseconds;
+
+            // Record successful transaction metrics
+            ApplicationDiagnostics.TransactionDuration.Record(elapsedMs,
+                new KeyValuePair<string, object?>("command_type", typeName),
+                new KeyValuePair<string, object?>("success", "true"));
+
+            activity?.SetTag("transaction.success", true);
+            activity?.SetTag("transaction.duration_ms", elapsedMs);
+
             return response;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error Handling transaction for {CommandName} ({@Command})", typeName, request);
+
+            // Record failed transaction metrics
+            ApplicationDiagnostics.TransactionDuration.Record(0,
+                new KeyValuePair<string, object?>("command_type", typeName),
+                new KeyValuePair<string, object?>("success", "false"));
+
+            activity?.SetTag("transaction.success", false);
+            activity?.SetTag("error.type", ex.GetType().FullName);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
 
             throw;
         }

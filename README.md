@@ -48,7 +48,7 @@ El objetivo es servir como:
 | Dominio / aplicación | DDD (lightweight), CQRS con MediatR, pipeline behaviors (logging, validación, transacciones), FluentValidation |
 | Persistencia | Entity Framework Core 10 + SQL Server, Redis |
 | Mensajería | RabbitMQ, Outbox (Integration Event Log), consumidores idempotentes |
-| Observabilidad | Logging estructurado, OpenTelemetry vía ServiceDefaults *(ampliación en Stage.04-3)* |
+| Observabilidad | Logging estructurado, OpenTelemetry (trazas y métricas propias, propagación de contexto por RabbitMQ) |
 | Frontend *(planificado)* | Blazor Web App + Radzen |
 | Seguridad *(planificado)* | Duende IdentityServer |
 
@@ -97,10 +97,10 @@ docs/                              → Documentación detallada de cada etapa
 | ↳ Stage.03-2 | Idempotencia y transaccionalidad (comandos) | ✅ Completado |
 | ↳ Stage.03-3 | Idempotencia en event handlers | ✅ Completado |
 | ↳ Stage.03-4 | Transacciones resilientes | ✅ Completado |
-| **Stage.04** | **Observabilidad y validaciones** | 🚧 En progreso |
+| **Stage.04** | **Observabilidad y validaciones** | ✅ Completado |
 | ↳ Stage.04-1 | Logging enriquecido | ✅ Completado |
 | ↳ Stage.04-2 | Validaciones con FluentValidation | ✅ Completado |
-| ↳ Stage.04-3 | Telemetría con OpenTelemetry | 📋 Planificado |
+| ↳ Stage.04-3 | Telemetría con OpenTelemetry | ✅ Completado |
 | **Stage.05** | Identity con Duende IdentityServer | 📋 Planificado |
 | **Stage.06** | Web App Blazor + Radzen | 📋 Planificado |
 | **Stage.07** | Webhooks y extensibilidad | 📋 Planificado |
@@ -124,6 +124,7 @@ El código de cada etapa está en su propia rama (`stages/stage-01`, `stages/sta
 | [Stage.03 – Patrones arquitectónicos](docs/Stage.03-Patrones-Arquitectonicos.md) | Guía detallada de los patrones aplicados |
 | [Stage.04-1 – Logging](docs/Stage.04-1-Logging.md) | Logging estructurado y enriquecido |
 | [Stage.04-2 – Validations](docs/Stage.04-2-Validations.md) | FluentValidation y manejo de excepciones |
+| [Stage.04-3 – Telemetry](docs/Stage.04-3-Telemetry.md) | Trazas, métricas y propagación de contexto con OpenTelemetry |
 
 ---
 
