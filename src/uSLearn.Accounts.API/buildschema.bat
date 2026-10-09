@@ -1,10 +1,10 @@
-rem https://docs.microsoft.com/es-es/ef/core/cli/dotnet
-
-rem rmdirXX /S /Q "Data/Migrations"
-rem dotnet ef migrations add Initial -c QltSystemDBContext -o  Persistence/Migrations --startup-project ../Account.Api/ 
-
-rem dotnet ef migrations add --startup-project uSLearn.Account.ApiService --context AccountContext Initial
-
-
-rem dotnet ef migrations add Initial -c AccountContext -o  Infrastructure/Migrations
-dotnet ef migrations add Add_Account_EventLog -c AccountContext -o  Infrastructure/Migrations
+@echo off
+rem Adds an EF Core migration for AccountContext. Usage: buildschema.bat <MigrationName>
+rem https://learn.microsoft.com/ef/core/cli/dotnet
+if "%~1"=="" (
+  echo Usage: %~nx0 ^<MigrationName^>
+  exit /b 1
+)
+pushd "%~dp0"
+dotnet ef migrations add %1 -c AccountContext -o Infrastructure/Migrations
+popd

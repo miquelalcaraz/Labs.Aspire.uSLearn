@@ -27,15 +27,9 @@ namespace uSLearn.Accounts.Api
             CreateOrganizationRequest request,
             [AsParameters] AccountsServices services)
         {
-            services.Logger.LogInformation(
-                "Sending command: {CommandName} - {IdProperty}: {CommandId}",
-                request.GetGenericTypeName(),
-                nameof(request.TaxIdNumber),
-                request.TaxIdNumber); //don't log the request as it has CC number
-
             if (requestId == Guid.Empty)
             {
-                services.Logger.LogWarning("Invalid IntegrationEvent - RequestId is missing - {@IntegrationEvent}", request);
+                services.Logger.LogWarning("Invalid request - x-requestid header is missing - {@Request}", request);
                 return TypedResults.BadRequest("Empty GUID is not valid for request ID");
             }
 
@@ -56,22 +50,21 @@ namespace uSLearn.Accounts.Api
 
                 var identifiedCommand = new IdentifiedCommand<CreateOrganizationCommand, bool>(createOrganizationCommand, requestId);
 
-                var result = await services.Mediator.Send(identifiedCommand);
-
                 services.Logger.LogInformation(
-                        "Sending command: {CommandName} - {IdProperty}: {CommandId} ({@Command})",
+                        "Sending command: {CommandName} - {IdProperty}: {CommandId}",
                         identifiedCommand.GetGenericTypeName(),
-                        nameof(identifiedCommand.Id),
-                        identifiedCommand.Id,
-                        identifiedCommand);
+                        nameof(request.TaxIdNumber),
+                        request.TaxIdNumber);
+
+                var result = await services.Mediator.Send(identifiedCommand);
 
                 if (result)
                 {
-                    services.Logger.LogInformation("CreateOrderCommand succeeded - RequestId: {RequestId}", requestId);
+                    services.Logger.LogInformation("CreateOrganizationCommand succeeded - RequestId: {RequestId}", requestId);
                 }
                 else
                 {
-                    services.Logger.LogWarning("CreateOrderCommand failed - RequestId: {RequestId}", requestId);
+                    services.Logger.LogWarning("CreateOrganizationCommand failed - RequestId: {RequestId}", requestId);
                     return TypedResults.BadRequest("Failed to create organization");
                 }
 

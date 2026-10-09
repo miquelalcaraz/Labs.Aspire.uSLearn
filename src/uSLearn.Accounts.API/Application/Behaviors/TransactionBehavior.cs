@@ -36,27 +36,43 @@ public class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior<TReque
             }
 
             var strategy = _dbContext.Database.CreateExecutionStrategy();
+            var attempt = 0;
+            Guid transactionId = default;
 
             await strategy.ExecuteAsync(async () =>
             {
-                Guid transactionId;
+                // Entities tracked by a failed attempt would collide with the ones the retry adds again
+                if (attempt++ > 0)
+                {
+                    _dbContext.ChangeTracker.Clear();
+                }
 
                 await using var transaction = await _dbContext.BeginTransactionAsync();
                 using (_logger.BeginScope(new List<KeyValuePair<string, object>> { new("TransactionContext", transaction.TransactionId) }))
                 {
-                    _logger.LogInformation("Begin transaction {TransactionId} for {CommandName} ({@Command})", transaction.TransactionId, typeName, request);
+                    try
+                    {
+                        _logger.LogInformation("Begin transaction {TransactionId} for {CommandName} ({@Command})", transaction.TransactionId, typeName, request);
 
-                    response = await next(cancellationToken);
+                        response = await next(cancellationToken);
 
-                    _logger.LogInformation("Commit transaction {TransactionId} for {CommandName}", transaction.TransactionId, typeName);
+                        _logger.LogInformation("Commit transaction {TransactionId} for {CommandName}", transaction.TransactionId, typeName);
 
-                    await _dbContext.CommitTransactionAsync(transaction);
+                        await _dbContext.CommitTransactionAsync(transaction);
+                    }
+                    catch
+                    {
+                        // Clears the context's current transaction so a retry can begin a new one
+                        _dbContext.RollbackTransaction();
+                        throw;
+                    }
 
                     transactionId = transaction.TransactionId;
                 }
-
-                await _accountIntegrationEventService.PublishEventsThroughEventBusAsync(transactionId);
             });
+
+            // Publish outside the execution strategy: a transient failure here must not re-run the committed command
+            await _accountIntegrationEventService.PublishEventsThroughEventBusAsync(transactionId);
 
             return response;
         }

@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 
 using uSLearn.Accounts.Infrastructure.Idempotency;
 using uSLearn.Core.EventBus.Extensions;
@@ -60,9 +60,9 @@ public abstract class IdentifiedCommandHandler<T, R> : IRequestHandler<Identifie
 
                 switch (command)
                 {
-                    case CreateOrganizationCommand createOrderCommand:
-                        idProperty = nameof(createOrderCommand.TaxIdNumber);
-                        commandId = createOrderCommand.TaxIdNumber;
+                    case CreateOrganizationCommand createOrganizationCommand:
+                        idProperty = nameof(createOrganizationCommand.TaxIdNumber);
+                        commandId = createOrganizationCommand.TaxIdNumber;
                         break;
 
 

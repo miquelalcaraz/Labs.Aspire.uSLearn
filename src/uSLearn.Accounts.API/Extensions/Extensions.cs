@@ -33,6 +33,8 @@ namespace uSLearn.Accounts.Extensions
                 options.UseSqlServer(connectionString, options =>
                 {
                     options.MigrationsAssembly(typeof(Program).Assembly.FullName);
+                    // Retry transient SQL errors (deadlocks, timeouts); used by TransactionBehavior's execution strategy
+                    options.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null);
                 });
 
             });
