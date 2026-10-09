@@ -12,5 +12,5 @@ Microservices reference app on .NET 10 + .NET Aspire, based on [dotnet/eShop](ht
 
 - Run everything: `dotnet run --project src/uSLearn.AppHost` (requires Docker)
 - Build: `dotnet build uSLearn.slnx`
-- Clean bin/obj: `cleanup.cmd`
+- Clean bin/obj: `cleanup.cmd` (`cleanup.cmd -n` to preview); it runs `git clean -Xd -e "!*.user" -- src`, so it removes only git-ignored files under `src`
 - Add an EF Core migration: `src/uSLearn.Accounts.API/buildschema.bat <Name>` or `src/uSLearn.Identity.API/buildschema.bat <Name>`
