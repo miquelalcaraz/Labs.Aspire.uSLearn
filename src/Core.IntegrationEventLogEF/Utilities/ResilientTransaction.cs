@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -9,6 +9,11 @@ namespace uSLearn.Core.IntegrationEventLogEF.Utilities;
 /// Provides resilient transaction execution with automatic retry strategy.
 /// Ensures atomicity across multiple operations within a single database context.
 /// </summary>
+/// <remarks>
+/// Retries only happen when the provider is configured with a retrying execution strategy
+/// (e.g. <c>EnableRetryOnFailure</c> for SQL Server). On each retry the whole action runs again,
+/// so it must be safe to re-execute.
+/// </remarks>
 public class ResilientTransaction
 {
     private readonly DbContext _context;
@@ -23,29 +28,24 @@ public class ResilientTransaction
 
     /// <summary>
     /// Executes an action within a resilient database transaction.
-    /// Automatically retries on transient failures using EF Core's execution strategy.
     /// </summary>
     /// <param name="action">The business logic to execute within the transaction</param>
-    public async Task ExecuteAsync(Func<Task> action)
-    {
-        // Use of an EF Core resiliency strategy when using multiple DbContexts within an explicit BeginTransaction()
-        // See: https://docs.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency
-        var strategy = _context.Database.CreateExecutionStrategy();
-
-        await strategy.ExecuteAsync(async () =>
+    public Task ExecuteAsync(Func<Task> action) =>
+        ExecuteAsync(async () =>
         {
-            await using var transaction = await _context.Database.BeginTransactionAsync();
-            try
-            {
-                await action();
-                await transaction.CommitAsync();
-            }
-            catch
-            {
-                await transaction.RollbackAsync();
-                throw;
-            }
+            await action();
+            return true;
         });
+
+    /// <summary>
+    /// Executes an action with a callback after successful commit (e.g. publish events).
+    /// </summary>
+    /// <param name="action">The business logic to execute within the transaction</param>
+    /// <param name="onCommitted">Callback to execute after successful commit</param>
+    public async Task ExecuteAsync(Func<Task> action, Func<Task> onCommitted)
+    {
+        await ExecuteAsync(action);
+        await onCommitted();
     }
 
     /// <summary>
@@ -56,10 +56,19 @@ public class ResilientTransaction
     /// <returns>The result of the action</returns>
     public async Task<T> ExecuteAsync<T>(Func<Task<T>> action)
     {
+        // Use of an EF Core resiliency strategy when using an explicit BeginTransaction()
+        // See: https://learn.microsoft.com/ef/core/miscellaneous/connection-resiliency
         var strategy = _context.Database.CreateExecutionStrategy();
+        var attempt = 0;
 
         return await strategy.ExecuteAsync(async () =>
         {
+            // Entities tracked by a failed attempt would collide with the ones the retry adds again
+            if (attempt++ > 0)
+            {
+                _context.ChangeTracker.Clear();
+            }
+
             await using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
@@ -76,37 +85,8 @@ public class ResilientTransaction
     }
 
     /// <summary>
-    /// Executes an action with a callback after successful commit (useful for Outbox pattern).
-    /// </summary>
-    /// <param name="action">The business logic to execute within the transaction</param>
-    /// <param name="onCommitted">Callback to execute after successful commit (e.g., publish events)</param>
-    public async Task ExecuteAsync(Func<Task> action, Func<Task> onCommitted)
-    {
-        var strategy = _context.Database.CreateExecutionStrategy();
-
-        await strategy.ExecuteAsync(async () =>
-        {
-            await using var transaction = await _context.Database.BeginTransactionAsync();
-            try
-            {
-                await action();
-                await transaction.CommitAsync();
-
-                // Execute callback only after successful commit
-                await onCommitted();
-            }
-            catch
-            {
-                await transaction.RollbackAsync();
-                throw;
-            }
-        });
-    }
-
-    /// <summary>
     /// Gets the current transaction or null if no transaction is active.
-    /// Useful for sharing transactions across multiple operations.
     /// </summary>
-    public IDbContextTransaction? GetCurrentTransaction() => 
+    public IDbContextTransaction? GetCurrentTransaction() =>
         _context.Database.CurrentTransaction;
 }

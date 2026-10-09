@@ -26,6 +26,8 @@ namespace uSLearn.Identity.Extensions
                 options.UseSqlServer(connectionString, sqlOptions =>
                 {
                     sqlOptions.MigrationsAssembly(typeof(Program).Assembly.FullName);
+                    // Retry transient SQL errors (deadlocks, timeouts); required by ResilientTransaction
+                    sqlOptions.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null);
                 });
             });
             services.AddMigration<IdentityContext, IdentityContextSeed>();
