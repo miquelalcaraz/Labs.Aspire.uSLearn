@@ -68,7 +68,7 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
             var elapsedMs = stopwatch.ElapsedMilliseconds;
 
             // Record metrics
-            ApplicationDiagnostics.CommandsProcessed.Add(1, 
+            ApplicationDiagnostics.CommandsProcessed.Add(1,
                 new KeyValuePair<string, object?>("command_type", commandName),
                 new KeyValuePair<string, object?>("success", "true"));
 
@@ -135,14 +135,14 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
     private static string GetCommandName(TRequest request)
     {
         var type = request.GetType();
-        
+
         if (type.IsGenericType)
         {
             var genericArgs = string.Join(",", type.GetGenericArguments().Select(t => t.Name));
             var typeName = type.Name[..type.Name.IndexOf('`')];
             return $"{typeName}<{genericArgs}>";
         }
-        
+
         return type.Name;
     }
 }

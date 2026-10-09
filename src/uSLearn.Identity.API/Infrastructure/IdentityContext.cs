@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+
 using uSLearn.Core.IntegrationEventLogEF;
 using uSLearn.Identity.Models;
 

@@ -79,7 +79,7 @@ public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TReques
             activity?.SetTag("validation.failed", true);
             activity?.SetTag("validation.error_count", errorCount);
             activity?.SetStatus(ActivityStatusCode.Error, "Validation failed");
-            activity?.AddEvent(new ActivityEvent("ValidationFailed", 
+            activity?.AddEvent(new ActivityEvent("ValidationFailed",
                 tags: new ActivityTagsCollection
                 {
                     { "errors", string.Join("; ", failures.Select(f => $"{f.PropertyName}: {f.ErrorMessage}")) }

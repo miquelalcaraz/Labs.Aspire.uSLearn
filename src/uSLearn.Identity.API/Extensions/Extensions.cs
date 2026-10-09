@@ -1,7 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 
 using uSLearn.Core.Application.Abstractions;
-using uSLearn.Core.Application.Behaviors;
 using uSLearn.Core.EventBus.Abstractions;
 using uSLearn.Core.EventBus.Extensions;
 using uSLearn.Core.EventBusRabbitMQ;

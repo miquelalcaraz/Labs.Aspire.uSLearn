@@ -18,7 +18,7 @@ public class ExceptionHandlingMiddleware
     private readonly IHostEnvironment _environment;
 
     public ExceptionHandlingMiddleware(
-        RequestDelegate next, 
+        RequestDelegate next,
         ILogger<ExceptionHandlingMiddleware> logger,
         IHostEnvironment environment)
     {
@@ -35,7 +35,7 @@ public class ExceptionHandlingMiddleware
         }
         catch (ValidationException ex)
         {
-            _logger.LogWarning(ex, "Validation failed for {RequestMethod} {RequestPath}", 
+            _logger.LogWarning(ex, "Validation failed for {RequestMethod} {RequestPath}",
                 context.Request.Method, context.Request.Path);
             await HandleValidationExceptionAsync(context, ex);
         }
@@ -47,7 +47,7 @@ public class ExceptionHandlingMiddleware
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unhandled exception for {RequestMethod} {RequestPath}: {ExceptionType}", 
+            _logger.LogError(ex, "Unhandled exception for {RequestMethod} {RequestPath}: {ExceptionType}",
                 context.Request.Method, context.Request.Path, ex.GetType().FullName);
             await HandleGenericExceptionAsync(context, ex);
         }
