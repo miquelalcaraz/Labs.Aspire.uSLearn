@@ -201,7 +201,7 @@ La comprobación de idempotencia se hace **fuera** de la transacción para no bl
 ## ⚠️ Limitaciones Conocidas
 
 - **Sin reentrega de eventos fallidos**: el `RabbitMQEventBus`, igual que en eShop, hace `ack` del mensaje aunque el handler falle. Un error no transitorio hace que el evento se pierda; en producción se resolvería con una *Dead Letter Exchange*.
-- **Accounts.API sin `EnableRetryOnFailure`**: su `TransactionBehavior` usa la misma estrategia, pero hasta que se configure no reintenta.
+- **Accounts.API**: en esta etapa su `TransactionBehavior` todavía no reintenta, porque no tiene `EnableRetryOnFailure`. Se activa más adelante en `dev`, donde el behavior también se adapta a los reintentos (reinicia la transacción y el `ChangeTracker`, y publica fuera de la estrategia).
 - **Outbox sin reintento de publicación**: los eventos que quedan en `PublishedFailed` no se republican; falta un proceso en segundo plano.
 
 ---
