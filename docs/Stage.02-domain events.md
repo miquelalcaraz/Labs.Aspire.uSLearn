@@ -249,7 +249,7 @@ public class CreateOrganizationCommandHandler : IRequestHandler<CreateOrganizati
 
 #### Queries (CQRS - Read Side)
 
-**IOrganizationQueries** con implementación directa en Dapper/EF:
+**IOrganizationQueries** con implementación de solo lectura sobre EF Core (`OrganizationQueries`):
 
 ```csharp
 public interface IOrganizationQueries
@@ -383,7 +383,7 @@ dotnet ef migrations add Initial -c AccountContext
 ```
 
 Resultado: esquema `account` con tablas:
-- `account.Organizations`
+- `account.Organization`
 - `account.OrganizationContact`
 
 #### Database Seeding
@@ -589,10 +589,10 @@ dotnet run --project src/uSLearn.AppHost
 
 ### Comprobaciones:
 
-1. ✅ Dashboard de Aspire muestra `accountsapi` corriendo
+1. ✅ Dashboard de Aspire muestra `apiservice` corriendo
 2. ✅ Base de datos SQL Server conectada
 3. ✅ Migraciones aplicadas automáticamente
-4. ✅ Swagger/OpenAPI disponible en desarrollo
+4. ✅ OpenAPI + interfaz Scalar disponibles en desarrollo (`/scalar/v1`)
 5. ✅ Endpoints de la API funcionando
 
 ### Pruebas de API
@@ -619,7 +619,7 @@ Content-Type: application/json
 **Respuesta esperada:**
 - Status: `200 OK`
 - Logs: Evento `OrganizationCreatedDomainEvent` despachado
-- Base de datos: Registro creado en `account.Organizations`
+- Base de datos: Registro creado en `account.Organization`
 
 **Obtener organización:**
 ```bash
@@ -758,7 +758,7 @@ En la siguiente etapa se introducirán:
 - Message broker (RabbitMQ/Azure Service Bus)
 - Outbox pattern para consistencia eventual
 - Idempotent consumers
-- EventBus abstraction en BuildingBlocks
+- Abstracción `EventBus` como building block compartido
 
 ---
 

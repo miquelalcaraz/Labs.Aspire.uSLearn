@@ -217,7 +217,7 @@ private static void AddEventBusSubscriptions(this IEventBusBuilder eventBus)
 ### Caso: Creación de una Organización
 
 ```
-1. API Request → POST /api/v1/accounts/organization
+1. API Request → PUT /api/accounts
                      │
                      ▼
 2. CreateOrganizationCommandHandler
@@ -258,27 +258,32 @@ private static void AddEventBusSubscriptions(this IEventBusBuilder eventBus)
 
 ## 🔧 Configuración Requerida
 
-### appsettings.json (ambos servicios)
+### appsettings.json
+
+Cada servicio usa su propio nombre de suscripción, que se convierte en el nombre de su cola en RabbitMQ:
 
 ```json
-{
-  "EventBus": {
-    "SubscriptionClientName": "uSLearn.Identity.API",
-    "RetryCount": 5
-  }
-}
+// uSLearn.Accounts.API
+{ "EventBus": { "SubscriptionClientName": "Accounts" } }
+
+// uSLearn.Identity.API
+{ "EventBus": { "SubscriptionClientName": "Identity" } }
 ```
+
+`RetryCount` (reintentos de publicación con Polly) es opcional; por defecto vale 10.
 
 ### Aspire AppHost
 
 ```csharp
-var eventBus = builder.AddRabbitMQ("eventbus");
+var rabbitMq = builder.AddRabbitMQ("eventbus")
+    .WithLifetime(ContainerLifetime.Persistent);
 
-var accountsApi = builder.AddProject<Projects.uSLearn_Accounts_API>("accountsapi")
-    .WithReference(eventBus);
+var identity = builder.AddProject<Projects.uSLearn_Identity_API>("identity")
+    .WithReference(rabbitMq).WaitFor(rabbitMq);
 
-var identityApi = builder.AddProject<Projects.uSLearn_Identity_API>("identityapi")
-    .WithReference(eventBus);
+var apiService = builder.AddProject<Projects.uSLearn_Accounts_API>("apiservice")
+    .WithReference(accountDb).WaitFor(accountDb)
+    .WithReference(rabbitMq).WaitFor(rabbitMq);
 ```
 
 ---
@@ -298,40 +303,26 @@ var identityApi = builder.AddProject<Projects.uSLearn_Identity_API>("identityapi
 
 ## 🚀 Próximos Pasos
 
-### Stage.03-2 - Idempotencia en Consumidores
-
-- Implementar `IntegrationEventLog` para tracking de eventos publicados
-- Agregar tabla `EventProcessing` para detectar duplicados
-- Implementar lógica de negocio en `Identity.API` al recibir evento
-- Agregar retry policies con Polly
-- Implementar outbox pattern para garantizar publicación
-
-### Stage.03-3 - Resiliencia y Observabilidad
-
-- Dead letter queues para eventos fallidos
-- Distributed tracing entre servicios
-- Métricas de eventos publicados/consumidos
-- Health checks específicos de RabbitMQ
+- **Stage.03-2 – Idempotencia y transaccionalidad**: outbox (`IntegrationEventLog`) para publicar solo después del commit e idempotencia de comandos con `x-requestid`.
+- **Stage.03-3 – Idempotencia en event handlers**: lógica de negocio en `Identity.API` y deduplicación de eventos recibidos.
+- **Stage.03-4 – Transacciones resilientes**: atomicidad y reintentos en los handlers de integración.
 
 ---
 
 ## 📝 Notas Técnicas
 
-### ¿Por qué se recupera el agregado completo en el DomainEventHandler?
+### ¿Por qué se recupera el agregado en el DomainEventHandler?
 
-El evento de dominio solo contiene IDs para evitar acoplamiento con la estructura de datos. El handler recupera el agregado completo para:
+El evento de dominio ya lleva los datos básicos (nombre, NIF, país), pero el handler construye el evento de integración a partir del agregado recuperado del repositorio. Así el contrato público (`OrganizationCreatedIntegrationEvent`) se puede ampliar sin cambiar el evento de dominio. Como el agregado aún no se ha guardado, `GetAsync` lo obtiene del `ChangeTracker` de EF Core.
 
-1. Asegurar estado consistente al momento de publicación
-2. Tener acceso a toda la información necesaria para el Integration Event
-3. Respetar el patrón Aggregate Root
+### ⚠️ Limitación de esta etapa: publicación antes del commit
 
-### ¿Por qué MediatR dispara eventos ANTES de commit?
+`DispatchDomainEventsAsync` se ejecuta dentro de `SaveEntitiesAsync`, **antes** de `SaveChangesAsync`. En esta etapa el handler publica directamente en RabbitMQ, así que el evento sale **antes** de que la organización se haya guardado:
 
-El método `DispatchDomainEventsAsync` se ejecuta dentro de `SaveEntitiesAsync` **antes** del commit final. Esto garantiza:
+- Si `SaveChangesAsync` falla, `Identity.API` ya ha recibido un evento de una organización que no existe.
+- Si RabbitMQ no está disponible, falla toda la creación de la organización.
 
-- Una sola transacción para cambios del dominio y side effects locales
-- Si falla un handler, se rollback toda la operación
-- Los Integration Events se publican **después** del commit exitoso
+Es el problema que resuelve el **Stage.03-2** con el patrón *Transactional Outbox*: el evento se guarda en la misma transacción y se publica solo tras el commit.
 
 ---
 
@@ -353,14 +344,22 @@ El método `DispatchDomainEventsAsync` se ejecuta dentro de `SaveEntitiesAsync` 
 ### Comprobar publicación de eventos
 
 1. Ejecutar Aspire AppHost
-2. Crear organización mediante API:
-```bash
-POST /api/v1/accounts/organization
+2. Crear organización mediante API (en esta etapa todavía no se exige `x-requestid`):
+```http
+PUT https://localhost:7375/api/accounts?api-version=1.0
+Content-Type: application/json
+
 {
+  "taxIdNumber": "B12345678",
+  "taxNumberType": "Cif",
   "name": "ACME Corp",
-  "legalName": "ACME Corporation",
-  "taxNumber": "B12345678",
-  ...
+  "legalName": "ACME Corporation S.L.",
+  "street": "Main Street 1",
+  "city": "Barcelona",
+  "state": "Barcelona",
+  "country": "Spain",
+  "zipCode": "08001",
+  "organizationType": "Company"
 }
 ```
 
@@ -374,10 +373,7 @@ Publishing integration event for organization: {OrganizationId} - {Name}
 Received integration event for organization created: {OrganizationId} - {Name}
 ```
 
-5. Verificar en RabbitMQ Management (http://localhost:15672):
-   - Exchanges creados
-   - Queues creadas
-   - Mensajes procesados
+5. En el dashboard de Aspire (**Structured logs**), filtrar por `apiservice` e `identity` para ver ambos mensajes. El evento viaja por el exchange `uslearn_event_bus` hasta la cola `Identity`. (La traza distribuida entre ambos servicios llega en el Stage.04-3.)
 
 ---
 

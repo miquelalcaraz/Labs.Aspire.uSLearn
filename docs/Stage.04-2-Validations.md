@@ -35,27 +35,31 @@ Implementamos validación en **dos capas**:
 
 2. **`ExceptionHandlingMiddleware`** (ASP.NET Core Pipeline)
    - Captura `ValidationException` → retorna **400 Bad Request**
+   - Captura `BadHttpRequestException` (p. ej. falta la cabecera `x-requestid`) → retorna su código, normalmente **400**
    - Captura otras excepciones → retorna **500 Internal Server Error**
    - Formatea respuestas con RFC 9110 (Problem Details)
 
 **Orden del pipeline**:
+
+El endpoint envía un `IdentifiedCommand` que envuelve al `CreateOrganizationCommand`, así que los behaviors se ejecutan **dos veces**:
+
 ```
 HTTP Request
     ↓
 ExceptionHandlingMiddleware ← Captura TODAS las excepciones
     ↓
-Endpoint
+Endpoint → Mediator.Send(IdentifiedCommand)
     ↓
-MediatR.Send()
+LoggingBehavior → ValidationBehavior (sin validador, pasa) → TransactionBehavior (ABRE la transacción)
     ↓
-LoggingBehavior ← Logging con performance tracking
+IdentifiedCommandHandler → guarda Request ID → Mediator.Send(CreateOrganizationCommand)
     ↓
-ValidationBehavior ← Valida y lanza ValidationException si falla
+LoggingBehavior → ValidationBehavior (VALIDA) → TransactionBehavior (ya hay transacción, no abre otra)
     ↓
-TransactionBehavior ← Gestión de transacciones DB
-    ↓
-Handler (CreateOrganizationCommandHandler)
+CreateOrganizationCommandHandler
 ```
+
+Consecuencia: cuando el comando de negocio es inválido, la transacción **ya está abierta** (la abrió el `IdentifiedCommand`). La `ValidationException` provoca el rollback, incluido el Request ID, por lo que el cliente puede corregir la petición y reenviarla con el mismo `x-requestid`.
 
 ### ¿Por qué un Middleware Unificado?
 
@@ -73,7 +77,7 @@ Handler (CreateOrganizationCommandHandler)
 
 ```
 src/
-├── uSLearn.Core.Application/
+├── Core.Application/   ← renombrado (antes uSLearn.Core.Application)
 │   ├── Behaviors/
 │   │   └── ValidationBehavior.cs ← NUEVO (genérico, reutilizable)
 │   └── Exceptions/
@@ -96,7 +100,7 @@ src/
 
 ### 1. `ValidationException` (Custom Exception)
 
-**Ubicación**: `uSLearn.Core.Application/Exceptions/ValidationException.cs`
+**Ubicación**: `src/Core.Application/Exceptions/ValidationException.cs`
 
 **Características**:
 - Hereda de `Exception`
@@ -146,7 +150,7 @@ public class ValidationException : Exception
 
 ### 2. `ValidationBehavior<TRequest, TResponse>` (Genérico)
 
-**Ubicación**: `uSLearn.Core.Application/Behaviors/ValidationBehavior.cs`
+**Ubicación**: `src/Core.Application/Behaviors/ValidationBehavior.cs`
 
 **Características**:
 - ✅ Inyecta `IEnumerable<IValidator<TRequest>>` (todos los validadores registrados para el request)
@@ -239,8 +243,8 @@ public class CreateOrganizationCommandValidator : AbstractValidator<CreateOrgani
 
         // Enum validations
         RuleFor(x => x.TaxNumberType)
-            .IsInEnum().WithMessage("Tax number type must be specified")
-            .NotEqual(TaxNumberType.Unknown).WithMessage("Tax number type must be specified");
+            .NotEqual(TaxNumberType.Unknown).WithMessage("Tax number type must be specified")
+            .IsInEnum().WithMessage("Invalid tax number type");
 
         // Optional fields with conditional validation
         When(x => !string.IsNullOrWhiteSpace(x.Street), () =>
@@ -294,6 +298,11 @@ public class ExceptionHandlingMiddleware
             _logger.LogWarning(ex, "Validation failed for {RequestMethod} {RequestPath}", 
                 context.Request.Method, context.Request.Path);
             await HandleValidationExceptionAsync(context, ex);
+        }
+        catch (BadHttpRequestException ex)
+        {
+            // e.g. missing x-requestid header: keep its status code (400) instead of a 500
+            await HandleBadRequestExceptionAsync(context, ex);
         }
         catch (Exception ex)
         {
@@ -388,7 +397,7 @@ public static IHostApplicationBuilder AddApplicationServices(this IHostApplicati
 
 **HTTP Request**:
 ```http
-PUT /api/accounts HTTP/1.1
+PUT /api/accounts?api-version=1.0 HTTP/1.1
 x-requestid: f61cb746-a0cf-4bff-80c3-d12f18cb6380
 Content-Type: application/json
 
@@ -403,14 +412,14 @@ Content-Type: application/json
 
 ### Flujo Interno
 
-1. **Endpoint** recibe request → Crea `CreateOrganizationCommand` → `Mediator.Send(command)`
+1. **Endpoint** recibe request → Crea `IdentifiedCommand<CreateOrganizationCommand>` → `Mediator.Send(...)` → `TransactionBehavior` abre la transacción → `IdentifiedCommandHandler` envía el `CreateOrganizationCommand`
 
 2. **LoggingBehavior** → Log: `"Handling command CreateOrganizationCommand with RequestId f61cb746..."`
 
 3. **ValidationBehavior**:
    - Encuentra `CreateOrganizationCommandValidator`
    - Ejecuta validación asíncrona
-   - Encuentra 7 errores
+   - Encuentra errores en 7 propiedades
    - **Lanza `ValidationException`** con errores estructurados
 
 4. **LoggingBehavior** (catch) → Log: `"Error handling command CreateOrganizationCommand after 114ms"`
@@ -436,9 +445,10 @@ Content-Type: application/json
     ],
     "taxNumberType": ["Tax number type must be specified"],
     "country": ["Country is required"],
-    "zipCode": ["Zip code is required"]
+    "zipCode": ["Zip code is required"],
+    "organizationType": ["Invalid organization type"]
   },
-  "traceId": "00-b5fb3a94be983bdd8ffff5f10ef6634f-3ccb26ac154c47bb-01"
+  "traceId": "0HNP641GLKE5H:00000001"
 }
 ```
 
@@ -457,7 +467,7 @@ Content-Type: application/json
 ### 1. Test con Request Inválido
 
 ```bash
-curl -X PUT http://localhost:5001/api/accounts \
+curl -X PUT https://localhost:7375/api/accounts?api-version=1.0 \
   -H "x-requestid: $(uuidgen)" \
   -H "Content-Type: application/json" \
   -d '{"name":"","legalName":"","taxIdNumber":"","country":"","zipCode":""}'
@@ -468,16 +478,16 @@ curl -X PUT http://localhost:5001/api/accounts \
 ### 2. Test con Request Válido
 
 ```bash
-curl -X PUT http://localhost:5001/api/accounts \
+curl -X PUT https://localhost:7375/api/accounts?api-version=1.0 \
   -H "x-requestid: $(uuidgen)" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Acme Corp",
     "legalName": "Acme Corporation LLC",
     "taxIdNumber": "12-3456789",
-    "taxNumberType": "EIN",
+    "taxNumberType": "Ein",
+    "organizationType": "Company",
     "country": "United States",
-    "countryCode": "US",
     "zipCode": "94105",
     "city": "San Francisco",
     "state": "CA",
@@ -487,7 +497,19 @@ curl -X PUT http://localhost:5001/api/accounts \
 
 **Resultado esperado**: 200 OK
 
-### 3. Test de Error Interno (Simular Exception)
+> `organizationType` es obligatorio: si se omite, vale `0`, que no es un valor válido del enum, y la API responde 400 con `"organizationType": ["Invalid organization type"]`.
+
+### 3. Test sin cabecera `x-requestid`
+
+```bash
+curl -X PUT https://localhost:7375/api/accounts?api-version=1.0 \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Acme Corp"}'
+```
+
+**Resultado esperado**: 400 Bad Request con `"detail": "Required parameter \"Guid requestId\" was not provided from header."`
+
+### 4. Test de Error Interno (Simular Exception)
 
 Modificar temporalmente el handler para lanzar una excepción:
 

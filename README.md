@@ -111,6 +111,8 @@ docs/                              → Documentación detallada de cada etapa
 
 Cada etapa está documentada en [`/docs`](docs) con: objetivo, decisiones arquitectónicas, estructura añadida, código relevante y consideraciones futuras.
 
+El código de cada etapa está en su propia rama (`stages/stage-01`, `stages/stage-02`, …, `stages/stage-04.3`), y cada rama incluye todas las anteriores. La documentación se mantiene actualizada en `dev`.
+
 | Documento | Contenido |
 | --- | --- |
 | [Stage.01 – Project creation](docs/Stage.01-project%20creation.md) | Setup inicial con .NET Aspire |
@@ -120,7 +122,6 @@ Cada etapa está documentada en [`/docs`](docs) con: objetivo, decisiones arquit
 | [Stage.03-3 – Idempotency handler](docs/Stage.03-3-Idempotency-Handler.md) | Idempotencia en event handlers |
 | [Stage.03-4 – Transacciones resilientes](docs/Stage.03-4-Transacciones-Resilientes.md) | Atomicidad y reintentos en handlers de integración |
 | [Stage.03 – Patrones arquitectónicos](docs/Stage.03-Patrones-Arquitectonicos.md) | Guía detallada de los patrones aplicados |
-| [Stage.03 – Resumen](docs/RESUMEN-Stage.03.md) | Resumen de la etapa 3 |
 | [Stage.04-1 – Logging](docs/Stage.04-1-Logging.md) | Logging estructurado y enriquecido |
 | [Stage.04-2 – Validations](docs/Stage.04-2-Validations.md) | FluentValidation y manejo de excepciones |
 

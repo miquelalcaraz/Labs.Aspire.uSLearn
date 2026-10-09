@@ -90,7 +90,7 @@ builder.AddServiceDefaults();
 API minimalista con:
 
 - Endpoint de ejemplo `/weatherforecast`
-- OpenAPI configurado (Swagger en desarrollo)
+- Documento OpenAPI publicado en desarrollo (`/openapi/v1.json`)
 - Health checks integrados
 - Service Defaults aplicados
 
@@ -272,36 +272,21 @@ El nombre `"cache"` corresponde al definido en el AppHost, estableciendo la cone
 Esta etapa inicial establece los fundamentos. En etapas posteriores se añadirán:
 
 - **Stage.02**: Eventos de dominio dentro de los servicios
-- **Stage.03**: Comunicación entre servicios mediante eventos de integración
-- **Stage.04**: Autenticación con Duende IdentityServer
-- **Stage.05**: Mejoras en el frontend Blazor con Radzen
-- **Stage.06**: Sistema de webhooks
+- **Stage.03**: Comunicación entre servicios mediante eventos de integración e idempotencia
+- **Stage.04**: Observabilidad y validaciones
+- **Stage.05**: Identity con Duende IdentityServer
+- **Stage.06**: Web App Blazor + Radzen
+- **Stage.07**: Webhooks y extensibilidad
 
 ### Preparación para Microservicios
 
-Aunque actualmente solo hay un `ApiService`, la estructura permite añadir fácilmente nuevos servicios:
+Aunque actualmente solo hay un `ApiService`, la estructura permite añadir nuevos servicios. En etapas posteriores el `ApiService` se convierte en `uSLearn.Accounts.API` y se añade `uSLearn.Identity.API`. Cada servicio es independiente y se comunica mediante:
+- HTTP (síncrona)
+- Eventos de integración (asíncrona)
 
-```
-src/Services/
- ├── Accounts/
- ├── Identity/
- └── ...
-```
+### Preparación para building blocks
 
-Cada servicio será independiente y se comunicará mediante:
-- HTTP (síncronas)
-- Eventos de integración (asíncronas)
-
-### Preparación para BuildingBlocks
-
-En futuras etapas se crearán componentes reutilizables:
-
-```
-src/BuildingBlocks/
- ├── EventBus/         → Abstracción de mensajería
- ├── SharedKernel/     → Elementos compartidos (Value Objects, etc.)
- └── Infrastructure/   → Utilidades comunes
-```
+Los componentes reutilizables se extraen a proyectos `Core.*` a medida que se necesitan (`Core.Domain`, `Core.EventBus`, `Core.EventBusRabbitMQ`, `Core.IntegrationEventLogEF`, `Core.Application`, `Core.Infrastructure`), siguiendo la idea de los *building blocks* de eShop.
 
 ---
 

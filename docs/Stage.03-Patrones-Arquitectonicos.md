@@ -116,7 +116,7 @@ public async Task PublishEventsThroughEventBusAsync(Guid transactionId)
 - ✅ **Atomicidad**: Dominio + Eventos se persisten juntos o ninguno
 - ✅ **Consistencia**: Estado de BD = Eventos guardados
 - ✅ **Durabilidad**: Eventos sobreviven a fallos de proceso
-- ✅ **At-least-once delivery**: Background worker puede reintentar eventos `PublishedFailed`
+- ⚠️ **At-least-once delivery (pendiente)**: los eventos que fallan quedan como `PublishedFailed`. Para garantizar la entrega haría falta un proceso en segundo plano que los republique; todavía no está implementado
 
 ---
 
@@ -210,8 +210,8 @@ SELECT * FROM [account].[requests];
 
 Id                                    | Name                         | Time
 --------------------------------------|------------------------------|--------------------
-a1b2c3d4-5678-90ab-cdef-123456789abc  | CreateOrganizationCommand   | 2024-03-06 10:30:15
-b2c3d4e5-6789-01bc-def0-234567890bcd  | UpdateOrganizationCommand   | 2024-03-06 10:31:42
+a1b2c3d4-5678-90ab-cdef-123456789abc  | CreateOrganizationCommand   | 2026-03-06 10:30:15
+b2c3d4e5-6789-01bc-def0-234567890bcd  | CreateOrganizationCommand   | 2026-03-06 10:31:42
 ```
 
 ### ⚠️ Consideraciones de Producción
@@ -219,11 +219,11 @@ b2c3d4e5-6789-01bc-def0-234567890bcd  | UpdateOrganizationCommand   | 2024-03-06
 **Problema: Tabla requests crece indefinidamente**
 
 Soluciones:
-1. **TTL (Time To Live)**: Limpieza periódica de requests antiguos
+1. **TTL (Time To Live)**: Limpieza periódica de requests antiguos (propuesta, no implementada)
    ```csharp
-   // Background job
+   // Background job (sketch)
    var cutoffDate = DateTime.UtcNow.AddDays(-30);
-   await _context.ClientRequests
+   await _context.Set<ClientRequest>()
        .Where(r => r.Time < cutoffDate)
        .ExecuteDeleteAsync();
    ```
@@ -342,7 +342,7 @@ public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TRe
 
 ### 📊 ExecutionStrategy
 
-Maneja reintentos automáticos ante fallos transitorios:
+Maneja reintentos automáticos ante fallos transitorios **siempre que el `DbContext` tenga `EnableRetryOnFailure`**. Sin esa opción, `CreateExecutionStrategy()` devuelve una estrategia que no reintenta. En este stage aún no está activado: llega con el Stage.03-4 en Identity y después del Stage.04 en Accounts.
 
 ```
 Intento 1: BEGIN → Operaciones → COMMIT → ❌ Deadlock
@@ -357,7 +357,7 @@ Intento 3: BEGIN → Operaciones → COMMIT → ✅ Success
 - ✅ **Atomicidad**: Todas las operaciones o ninguna
 - ✅ **Isolation**: Cambios no visibles hasta commit
 - ✅ **Consistency**: Estado de BD siempre válido
-- ✅ **Resilience**: Reintentos automáticos ante fallos transitorios
+- ✅ **Resilience**: Preparado para reintentos ante fallos transitorios (requiere `EnableRetryOnFailure`)
 - ✅ **Centralización**: Lógica transaccional fuera de handlers
 
 ---
@@ -518,7 +518,9 @@ Problemas:
 
 ### ✅ Solución
 
-Aceptar **inconsistencia temporal** y converger a consistencia mediante eventos:
+Aceptar **inconsistencia temporal** y converger a consistencia mediante eventos.
+
+> Ejemplo ilustrativo: `Billing Service` y `TenantCreatedIntegrationEvent` no existen en el proyecto; sirven para mostrar cómo se encadenaría la consistencia entre varios servicios.
 
 ```
 ✅ EVENTUAL CONSISTENCY:
@@ -572,7 +574,9 @@ public async Task Handle(OrganizationCreatedDomainEvent notification, Cancellati
 }
 ```
 
-**IdentityService (consumidor):**
+**Identity.API (consumidor):**
+
+En este stage el handler solo registra la recepción del evento. La creación del tenant y del usuario administrador llega en el Stage.03-3 (y se hace atómica en el 03-4):
 
 ```csharp
 public class OrganizationCreatedIntegrationEventHandler 
@@ -580,11 +584,10 @@ public class OrganizationCreatedIntegrationEventHandler
 {
     public async Task Handle(OrganizationCreatedIntegrationEvent @event)
     {
-        // Procesar evento asincrónicamente
-        var tenant = new Tenant(@event.TenantId, @event.OrganizationName);
-        await _tenantRepository.AddAsync(tenant);
-        
-        // Esto puede ocurrir segundos después del evento original
+        // Se ejecuta de forma asíncrona, después del commit en Accounts
+        _logger.LogInformation("Received integration event for organization created: {OrganizationId} - {Name}",
+            @event.OrganizationId, @event.Name);
+        await Task.CompletedTask;
     }
 }
 ```

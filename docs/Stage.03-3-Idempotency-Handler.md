@@ -6,6 +6,14 @@ Implementar idempotencia a nivel de handler para garantizar que los eventos de i
 
 ---
 
+## 🔀 Cambios de estructura en esta etapa
+
+- Los building blocks se renombran con el prefijo `Core.` (`Core.Domain`, `Core.EventBus`, `Core.EventBusRabbitMQ`, `Core.Infrastructure`, `Core.IntegrationEventLogEF`) y sus namespaces pasan a `uSLearn.Core.*`. El `SeedWork` de dominio sale de `Accounts.API` a `Core.Domain` para poder reutilizarse.
+- `Identity.API` incorpora su propia base de datos (`identitydb`, esquema `identity`) mediante `IdentityContext`.
+- El handler ya crea el **tenant** y el **usuario administrador** de la organización. En esta etapa ambos se guardan en **repositorios en memoria** (singleton): se pierden al reiniciar y no comparten transacción con el registro de idempotencia. Se pasan a EF Core en el Stage.03-4.
+
+---
+
 ## 🏗️ Decisiones Arquitectónicas
 
 ### ¿Por qué Idempotencia a Nivel de Handler?
@@ -237,7 +245,7 @@ Cada API que consuma eventos debe registrar el servicio con su propio `DbContext
 // En Accounts.API
 builder.Services.AddScoped<IEventIdempotencyService, EventIdempotencyService<AccountContext>>();
 
-// En Courses.API
+// En un futuro Courses.API (ejemplo hipotético)
 builder.Services.AddScoped<IEventIdempotencyService, EventIdempotencyService<CourseContext>>();
 ```
 
@@ -245,25 +253,25 @@ builder.Services.AddScoped<IEventIdempotencyService, EventIdempotencyService<Cou
 
 ## ✅ Verificación Práctica
 
-### 1. Crear Migración
+### 1. Migración
+
+La tabla se crea en la migración `Initial` de `IdentityContext` (`src/uSLearn.Identity.API/Infrastructure/Migrations`). No hay que aplicarla a mano: `AddMigration<IdentityContext, IdentityContextSeed>()` migra la base de datos al arrancar el servicio.
 
 ```bash
-dotnet ef migrations add AddProcessedIntegrationEvents --context IdentityContext --project src/uSLearn.Identity.API
+dotnet run --project src/uSLearn.AppHost
 ```
 
-### 2. Aplicar Migración
-
-```bash
-dotnet ef database update --context IdentityContext --project src/uSLearn.Identity.API
-```
-
-### 3. Validar Tabla Creada
+### 2. Validar Tabla Creada
 
 ```sql
-SELECT * FROM identity.ProcessedIntegrationEvents;
+SELECT * FROM [identity].ProcessedIntegrationEvents;
 ```
 
-### 4. Simular Evento Duplicado
+### 3. Crear una organización
+
+Con un `PUT /api/accounts` (ver Stage.03-2) se publica `OrganizationCreatedIntegrationEvent`, y `Identity.API` lo procesa y lo registra en `ProcessedIntegrationEvents`.
+
+### 4. Simular Evento Duplicado (opcional)
 
 Enviar el mismo evento dos veces desde RabbitMQ o crear dos organizaciones con el mismo event ID:
 
@@ -293,7 +301,7 @@ Enviar el mismo evento dos veces desde RabbitMQ o crear dos organizaciones con e
 
 ⚠️ **Problema potencial**: Si `MarkAsProcessedAsync()` se ejecuta en una transacción separada, podría haber race conditions.
 
-**Solución futura (Stage 04)**: Usar `ResilientTransaction` para garantizar que la lógica de negocio y el registro de idempotencia ocurran en la misma transacción.
+**Solución (Stage.03-4)**: Usar `ResilientTransaction` para garantizar que la lógica de negocio y el registro de idempotencia ocurran en la misma transacción.
 
 ### Limpieza de Datos Históricos
 
@@ -320,19 +328,10 @@ Si cambias el nombre de la clase, se tratará como un handler nuevo. Alternativa
 
 ## 🚀 Próximos Pasos
 
-### Stage 03-4: Transacciones Resilientes
+### Stage.03-4: Transacciones Resilientes
 
-Implementar `ResilientTransaction` para garantizar que:
-
-1. Lógica de negocio (crear tenant, admin user)
-2. Registro de idempotencia
-3. Publicación de eventos outbox
-
-Todo ocurra en una única transacción atómica.
-
-### Stage 03-5: Outbox Pattern
-
-Implementar patrón Outbox para garantizar que los eventos se publiquen de manera confiable, evitando pérdida de eventos si el broker no está disponible.
+- Pasar tenant y usuario administrador de los repositorios en memoria a EF Core.
+- Usar `ResilientTransaction` para que la lógica de negocio y el registro de idempotencia se confirmen en una única transacción atómica, con reintentos ante fallos transitorios.
 
 ---
 

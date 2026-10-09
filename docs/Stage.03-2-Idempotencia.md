@@ -43,7 +43,8 @@ await _accountIntegrationEventService.PublishEventsThroughEventBusAsync(transact
 **Garantías:**
 - ✅ **Atomicidad**: Dominio + Eventos se guardan o fallan juntos
 - ✅ **Consistencia**: Estado de BD siempre refleja eventos guardados
-- ✅ **At-least-once delivery**: Los eventos eventualmente se publican
+- ✅ **Sin eventos fantasma**: Solo se publican eventos de transacciones confirmadas
+- ⚠️ **Sin reintento de publicación**: si RabbitMQ falla, el evento queda como `PublishedFailed` en la tabla; republicarlo requeriría un proceso en segundo plano (no implementado)
 
 ---
 
@@ -81,7 +82,7 @@ var result = await _mediator.Send(message.Command, cancellationToken);
 ```
 
 **Garantías:**
-- ✅ **Exactly-once processing**: El comando se ejecuta una sola vez
+- ✅ **Una sola ejecución por Request ID**: El mismo `x-requestid` no vuelve a ejecutar el comando
 - ✅ **Idempotencia**: Múltiples llamadas con mismo ID → mismo resultado
 - ✅ **Sin side-effects duplicados**: Operaciones costosas no se repiten
 
@@ -123,7 +124,7 @@ public class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior<TReque
 **Garantías:**
 - ✅ **Atomicidad**: Todas las operaciones o ninguna
 - ✅ **Gestión centralizada**: Lógica transaccional fuera del handler
-- ✅ **Resilience**: Usa `ExecutionStrategy` para reintentos automáticos
+- ✅ **Preparado para reintentos**: Ejecuta la transacción dentro de una `ExecutionStrategy` (los reintentos reales requieren `EnableRetryOnFailure`, que se activa más adelante)
 
 ---
 
@@ -370,7 +371,7 @@ public class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior<TReque
 
 **Características:**
 
-- ✅ Usa `ExecutionStrategy` para resilience (reintentos en caso de fallos transitorios)
+- ✅ Usa `ExecutionStrategy`, obligatoria para combinar transacciones explícitas con reintentos. En esta etapa el `DbContext` no tiene `EnableRetryOnFailure`, así que la estrategia aún **no reintenta**; se activa más adelante (Identity en el Stage.03-4, Accounts después del Stage.04)
 - ✅ Eventos de integración se publican **solo si el commit es exitoso**
 - ✅ Logging estructurado con `TransactionId`
 - ✅ No crea transacciones anidadas
@@ -564,32 +565,30 @@ CREATE UNIQUE INDEX IX_requests_Id ON [account].[requests] (Id);
 ### Procesamiento de Comando con Idempotencia
 
 ```
-1. Cliente envía IdentifiedCommand<CreateOrganizationCommand>
+1. PUT /api/accounts con cabecera x-requestid → el endpoint crea IdentifiedCommand<CreateOrganizationCommand>
    ↓
-2. IdentifiedCommandHandler verifica si Request ID existe
+2. TransactionBehavior (sobre el IdentifiedCommand) inicia la transacción
    ↓
-3a. Si existe → Retorna CreateResultForDuplicateRequest() (idempotencia)
+3. IdentifiedCommandHandler verifica si el Request ID existe
    ↓
-3b. Si no existe → Guarda Request ID y continúa
+4a. Si existe → Retorna CreateResultForDuplicateRequest() (idempotencia)
    ↓
-4. TransactionBehavior inicia transacción
+4b. Si no existe → Guarda el Request ID (dentro de la transacción) y envía el comando interno
    ↓
-5. CreateOrganizationCommandHandler ejecuta lógica de negocio
+5. TransactionBehavior (sobre CreateOrganizationCommand) detecta la transacción activa y no abre otra
    ↓
-6. Agrega Organization a la base de datos
+6. CreateOrganizationCommandHandler crea la Organization
    ↓
-7. Dispara OrganizationCreatedDomainEvent
+7. SaveEntitiesAsync despacha OrganizationCreatedDomainEvent
    ↓
-8. DomainEventHandler llama a AddAndSaveEventAsync
+8. DomainEventHandler llama a AddAndSaveEventAsync → IntegrationEventLog (misma transacción)
    ↓
-9. IntegrationEvent se guarda en IntegrationEventLog (mismo transaction)
+9. TransactionBehavior hace COMMIT (Request ID + Organization + evento, todo junto)
    ↓
-10. TransactionBehavior hace COMMIT
-   ↓
-11. PublishEventsThroughEventBusAsync publica eventos a RabbitMQ
-   ↓
-12. Eventos se marcan como Published
+10. PublishEventsThroughEventBusAsync publica en RabbitMQ y marca el evento como Published
 ```
+
+Como el Request ID se guarda dentro de la misma transacción, si el comando falla también se revierte, y el cliente puede reintentar con el mismo `x-requestid`.
 
 ---
 
@@ -624,7 +623,7 @@ services.AddScoped<IRequestManager, RequestManager>();
 
 ```xml
 <ItemGroup>
-    <ProjectReference Include="..\Core.IntegrationEventLogEF\IntegrationEventLogEF.csproj" />
+    <ProjectReference Include="..\IntegrationEventLogEF\IntegrationEventLogEF.csproj" />
 </ItemGroup>
 ```
 
@@ -674,19 +673,30 @@ public class OrganizationCreatedDomainEventHandler
 
 ### 1. **Verificar Idempotencia**
 
-```csharp
-// Enviar el mismo comando dos veces con el mismo Request ID
-var requestId = Guid.NewGuid();
+Desde esta etapa el endpoint **exige** la cabecera `x-requestid` (un GUID generado por el cliente); sin ella responde `400 Bad Request`.
 
-await mediator.Send(new IdentifiedCommand<CreateOrganizationCommand, bool>(
-    new CreateOrganizationCommand(...), requestId));
+Enviar dos veces la misma petición con el **mismo** `x-requestid`:
 
-// Segunda llamada con el mismo ID
-await mediator.Send(new IdentifiedCommand<CreateOrganizationCommand, bool>(
-    new CreateOrganizationCommand(...), requestId));
+```http
+PUT https://localhost:7375/api/accounts?api-version=1.0
+x-requestid: 3f1c2a9e-5b7d-4c11-9a0e-2d6f8b4e1c77
+Content-Type: application/json
 
-// Resultado: Solo se crea una organización
+{
+  "taxIdNumber": "B12345678",
+  "taxNumberType": "Cif",
+  "name": "ACME Corp",
+  "legalName": "ACME Corporation S.L.",
+  "street": "Main Street 1",
+  "city": "Barcelona",
+  "state": "Barcelona",
+  "country": "Spain",
+  "zipCode": "08001",
+  "organizationType": "Company"
+}
 ```
+
+Resultado: ambas respuestas son `200 OK`, pero solo se crea una organización y un registro en `requests`.
 
 ### 2. **Verificar Tabla de Eventos**
 
@@ -729,7 +739,7 @@ Actualmente, la idempotencia solo está implementada en el **procesamiento de co
 
 Con idempotencia completa (comandos + eventos), el sistema estará preparado para:
 
-- **Stage.04:** Implementar Duende IdentityServer para autenticación y autorización
+- **Stage.03-4:** Transacciones resilientes en los handlers de integración
 - **Background workers** para reintentar eventos fallidos
 - **Políticas de retry** más sofisticadas con Polly
 - **Distributed transactions** con Saga pattern
