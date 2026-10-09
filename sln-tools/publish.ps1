@@ -1,127 +1,75 @@
+<#
+.SYNOPSIS
+  Packs the shared building blocks (Core.*) as NuGet packages and optionally pushes them to a feed.
+
+.DESCRIPTION
+  Packages are written to <repo>/artifacts/packages (ignored by git).
+  Pushing only happens when -Source is given; the API key is read from the NUGET_API_KEY
+  environment variable (or -ApiKey), never stored in the repository.
+
+.EXAMPLE
+  ./publish.ps1                                   # pack only
+  ./publish.ps1 -Version 1.2.0                    # pack with an explicit version
+  ./publish.ps1 -LocalFeed D:\.nuget\local        # pack and copy to a local folder feed
+  $env:NUGET_API_KEY = '...'; ./publish.ps1 -Source https://api.nuget.org/v3/index.json
+#>
+[CmdletBinding()]
 param
 (
-    $deployToFeed = "false",
-    $deployTolocal = "true",
-    $NugetOfflinePackagesPath = "D:\.nuget\OfflinePackagesV2",
-    $solutionFile = "",
-    $solutionPath = ".."
+  [string]$Solution = (Join-Path $PSScriptRoot '..\uSLearn.slnx'),
+  [string]$ProjectFilter = 'Core.*',
+  [string]$Configuration = 'Release',
+  [string]$Version,
+  [string]$OutputPath = (Join-Path $PSScriptRoot '..\artifacts\packages'),
+  [string]$LocalFeed,
+  [string]$Source,
+  [string]$ApiKey = $env:NUGET_API_KEY
 )
-# Variables
-# Ruta al archivo de la solución
-$feedName = "qltsystem"
-$organization = "icstema"
-$project = "QltSystem"
-$source = "https://pkgs.dev.azure.com/$organization/_packaging/$feedName/nuget/v3/index.json"
 
+$ErrorActionPreference = 'Stop'
+$Solution = (Resolve-Path -LiteralPath $Solution).Path
+$solutionDir = Split-Path $Solution
 
-#obtener la ruta relativa del archivo de la solución, a aprtir de la carpeta padre, si no se especifica
-if ($solutionFile -eq "") {
-    $solutionFile = Get-ChildItem -Path $solutionPath -Recurse -Filter "*.sln" | Select-Object -First 1
-    if (-not $solutionFile) {
-        Write-Host "No se encontró ningún archivo de solución en la carpeta actual."
-        exit
-    }
-    $solutionFile = $solutionFile.FullName
+# `dotnet sln list` understands both .sln and .slnx
+$projects = dotnet sln $Solution list |
+  Where-Object { $_ -match '\.csproj$' } |
+  ForEach-Object { Join-Path $solutionDir $_ } |
+  Where-Object { [IO.Path]::GetFileNameWithoutExtension($_) -like $ProjectFilter }
+
+if (-not $projects) {
+  Write-Warning "No projects matching '$ProjectFilter' found in $Solution."
+  exit 1
 }
 
-
-# Leer el contenido del archivo de la solución
-$solutionContent = Get-Content $solutionFile
-
-# Filtrar las líneas que contienen información de los proyectos
-$projectLines = $solutionContent | Where-Object { $_ -match '^Project\(' }
-
-# Obtener el nombre de la rama actual
-$branchName = git rev-parse --abbrev-ref HEAD
-
-
- 
-# Recorrer cada línea de proyecto y extraer la información
-foreach ($line in $projectLines) {
-    # Extraer el nombre del proyecto y la ruta relativa
-    if ($line -match 'Project\(".*"\) = "(.*)", "(.*)", ".*"') {
-        $projectName = $matches[1]
-        $projectPath = $matches[2]
-
-        # Convertir la ruta relativa a una ruta absoluta
-        $absoluteProjectPath = Join-Path (Split-Path $solutionFile) $projectPath
-        
-        #si no existe un archivo de proyecto con extensión .csproj, se continua con el siguiente proyecto
-        if (-not $projectPath.EndsWith(".csproj")) {
-            continue
-        }
-
-        # Leer el contenido del archivo .csproj
-        $csprojContent = Get-Content $absoluteProjectPath
-
-        # Verificar si el archivo .csproj contiene la propiedad <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        if (-not ($csprojContent -match '<GeneratePackageOnBuild>\s*true\s*</GeneratePackageOnBuild>')) {
-            Write-Host "El proyecto $projectName no tiene la propiedad <GeneratePackageOnBuild>true. Se omite."
-            continue
-        }
-
-        $outputPath = Join-Path (Split-Path $absoluteProjectPath) "bin\Release"
-        # Si la carpeta de salida existe, eliminar su contenido
-        if (Test-Path $outputPath) {
-            Write-Host "Eliminando contenido de la carpeta de salida..."
-            Remove-Item $outputPath -Recurse -Force
-        }
-        
-        # Compilar el proyecto
-        Write-Host "Compilando el proyecto..."
-        dotnet build $absoluteProjectPath --configuration Release
- 
-        # Obtener la ruta del paquete generado con el filtro del nombre del proyecto
-        # El proyecto tiene que tener la propiedad <GeneratePackageOnBuild>true</GeneratePackageOnBuild> en el archivo .csproj
-        $packagePath = Get-ChildItem -Path $outputPath -Filter "*.nupkg" | Select-Object -Last 1
-
-        if (-not $packagePath) {
-            continue
-        }
-        
-        Write-Host "Encontrado paquete NuGet generado para el proyecto $projectName."
-
-        # Si deployToFeed es true o la rama es main publicar el paquete en Azure DevOps Artifacts
-        if ($deployToFeed -eq "true" -and $branchName -eq "main") {
-            # Publicar el paquete en Azure DevOps Artifacts
-            Write-Host "Publicando el paquete en Azure DevOps Artifacts..."
-            #az artifacts universal publish --organization "https://dev.azure.com/$organization" --feed $feedName --name $packagePath.Name --version "1.0.0" --path $packagePath.FullName
-            #nuget push $packagePath.FullName -src https://pkgs.dev.azure.com/$organization/$project/_packaging/$feedName/nuget/v3/index.json -ApiKey az
-            #dotnet nuget push --source https://pkgs.dev.azure.com/$organization/$project/_packaging/$feedName/nuget/v3/index.json  --api-key az $packagePath.FullName 
-     
-            dotnet nuget push --interactive --source $feedName --api-key az $packagePath.FullName 
-                # Incrementar la versión del proyecto
-            Write-Host "Incrementando la versión del proyecto..."
-            #dotnet tool install --global nbgv
-            nbgv tag
-
-            # Hacer push de las etiquetas en el origen remoto
-            Write-Host "Haciendo push de las etiquetas en el origen remoto..."
-            git push --tags
-        }
-        # Copiar el paquete en la carpeta de paquetes offline de NuGet
-        #Write-Host "Copiando el paquete en la carpeta de paquetes offline de NuGet..."
-        if ($deployTolocal -eq "true" -or $branchName -eq "dev") {
-            Copy-Item $packagePath.FullName $NugetOfflinePackagesPath
-        }
-        else {
-            Write-Host "El paquete no se copiará en la carpeta de paquetes offline de NuGet."
-        }
-        if ($branchName -eq "main") {
-            Write-Host "Incrementando la versión del proyecto para $projectName..."
-            #Push-Location (Split-Path $absoluteProjectPath)
-            #$tagName = "$projectName-$(nbgv get-version | Select-String -Pattern 'Version: (.*)' | ForEach-Object { $_.Matches.Groups[1].Value })"
-            #nbgv tag -n $tagName
-
-            nbgv tag -p $absoluteProjectPath
-
-            #Pop-Location
-            # Hacer push de las etiquetas en el origen remoto
-            Write-Host "Haciendo push de las etiquetas en el origen remoto..."
-            git push --tags
- 
-        }
-
-    }
+if (Test-Path -LiteralPath $OutputPath) {
+  Remove-Item -LiteralPath $OutputPath -Recurse -Force
 }
-Write-Host "Proceso completado."
+New-Item -ItemType Directory -Force -Path $OutputPath | Out-Null
+
+$packArgs = @('--configuration', $Configuration, '--output', $OutputPath)
+if ($Version) { $packArgs += "-p:Version=$Version" }
+
+foreach ($project in $projects) {
+  Write-Host "Packing $([IO.Path]::GetFileNameWithoutExtension($project))..."
+  dotnet pack $project @packArgs
+  if ($LASTEXITCODE -ne 0) { throw "dotnet pack failed for $project" }
+}
+
+$packages = Get-ChildItem -LiteralPath $OutputPath -Filter '*.nupkg'
+Write-Host "$($packages.Count) package(s) created in $OutputPath"
+
+if ($LocalFeed) {
+  New-Item -ItemType Directory -Force -Path $LocalFeed | Out-Null
+  $packages | Copy-Item -Destination $LocalFeed -Force
+  Write-Host "Copied packages to local feed $LocalFeed"
+}
+
+if ($Source) {
+  if (-not $ApiKey) { throw 'Pushing requires -ApiKey or the NUGET_API_KEY environment variable.' }
+  foreach ($package in $packages) {
+    dotnet nuget push $package.FullName --source $Source --api-key $ApiKey --skip-duplicate
+    if ($LASTEXITCODE -ne 0) { throw "dotnet nuget push failed for $($package.Name)" }
+  }
+}
+
+Write-Host 'Publish completed.'

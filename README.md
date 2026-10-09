@@ -3,6 +3,7 @@
 ![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)
 ![Aspire](https://img.shields.io/badge/.NET%20Aspire-13.1-512BD4)
 ![Status](https://img.shields.io/badge/estado-en%20progreso-yellow)
+[![License: MIT](https://img.shields.io/badge/licencia-MIT-green)](LICENSE)
 
 Aplicación de referencia basada en **microservicios** con **.NET 10** y **.NET Aspire**, construida como laboratorio práctico para explorar patrones modernos de arquitectura distribuida: DDD, CQRS, eventos de dominio e integración, idempotencia y observabilidad.
 
@@ -172,6 +173,10 @@ Proyecto en construcción incremental. No pretende ser una arquitectura definiti
 
 - [dotnet/eShop](https://github.com/dotnet/eShop) — aplicación de referencia de Microsoft en la que se basa la arquitectura y varios componentes de este proyecto (licencia MIT).
 - [.NET Aspire](https://learn.microsoft.com/dotnet/aspire/)
+
+## 📄 Licencia
+
+Distribuido bajo licencia [MIT](LICENSE). Las partes derivadas de [dotnet/eShop](https://github.com/dotnet/eShop) mantienen el copyright de la .NET Foundation y sus contribuidores, también bajo MIT.
 
 ## 🤝 Contribuciones
 

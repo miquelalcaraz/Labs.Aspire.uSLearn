@@ -1,5 +1,2 @@
-
-
-echo on
-
-Powershell.exe -ExecutionPolicy ByPass -NoProfile  -file  "%~dp0\cleanup.ps1" -sourcesPath "%~dp0\..\src"
+@echo off
+powershell.exe -ExecutionPolicy Bypass -NoProfile -File "%~dp0cleanup.ps1" -SourcesPath "%~dp0..\src" %*
