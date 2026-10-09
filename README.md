@@ -137,8 +137,8 @@ Cada etapa está documentada en [`/docs`](docs) con: objetivo, decisiones arquit
 ### Ejecutar con Aspire
 
 ```bash
-git clone https://github.com/miquelalcaraz/labs-Aspire.uSLearn.git
-cd labs-Aspire.uSLearn
+git clone https://github.com/miquelalcaraz/Labs.Aspire.uSLearn.git
+cd Labs.Aspire.uSLearn
 dotnet run --project src/uSLearn.AppHost
 ```
 
