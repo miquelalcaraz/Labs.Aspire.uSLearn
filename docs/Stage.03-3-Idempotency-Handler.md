@@ -1,40 +1,40 @@
-# Stage.03-3 - Idempotency en el Handler
+# Stage.03-3 - Idempotent Event Handlers
 
-## 🎯 Objetivo
+## 🎯 Goal
 
-Implementar idempotencia a nivel de handler para garantizar que los eventos de integración no se procesen múltiples veces por el mismo handler, evitando duplicación de datos y comportamientos no deseados en el sistema distribuido.
-
----
-
-## 🔀 Cambios de estructura en esta etapa
-
-- Los building blocks se renombran con el prefijo `Core.` (`Core.Domain`, `Core.EventBus`, `Core.EventBusRabbitMQ`, `Core.Infrastructure`, `Core.IntegrationEventLogEF`) y sus namespaces pasan a `uSLearn.Core.*`. El `SeedWork` de dominio sale de `Accounts.API` a `Core.Domain` para poder reutilizarse.
-- `Identity.API` incorpora su propia base de datos (`identitydb`, esquema `identity`) mediante `IdentityContext`.
-- El handler ya crea el **tenant** y el **usuario administrador** de la organización. En esta etapa ambos se guardan en **repositorios en memoria** (singleton): se pierden al reiniciar y no comparten transacción con el registro de idempotencia. Se pasan a EF Core en el Stage.03-4.
+Implement idempotency at the handler level so that integration events are never processed more than once by the same handler, avoiding duplicate data and unwanted behavior in the distributed system.
 
 ---
 
-## 🏗️ Decisiones Arquitectónicas
+## 🔀 Structural Changes in This Stage
 
-### ¿Por qué Idempotencia a Nivel de Handler?
+- The building blocks are renamed with the `Core.` prefix (`Core.Domain`, `Core.EventBus`, `Core.EventBusRabbitMQ`, `Core.Infrastructure`, `Core.IntegrationEventLogEF`) and their namespaces move to `uSLearn.Core.*`. The domain `SeedWork` moves out of `Accounts.API` into `Core.Domain` so it can be reused.
+- `Identity.API` gets its own database (`identitydb`, `identity` schema) through `IdentityContext`.
+- The handler now creates the organization's **tenant** and **admin user**. At this stage both are stored in **in-memory repositories** (singletons): they are lost on restart and don't share a transaction with the idempotency record. They move to EF Core in Stage.03-4.
 
-En sistemas distribuidos basados en eventos, es fundamental garantizar que:
+---
 
-- **No se procesen eventos duplicados**: El message broker puede entregar el mismo mensaje múltiples veces (at-least-once delivery)
-- **Operaciones sean idempotentes**: Procesar el mismo evento varias veces debe producir el mismo resultado que procesarlo una vez
-- **Granularidad por handler**: Diferentes handlers pueden necesitar procesar el mismo evento, por lo que el tracking es por combinación `EventId + HandlerName`
+## 🏗️ Architectural Decisions
 
-### Arquitectura de la Solución
+### Why idempotency at the handler level?
+
+In event-driven distributed systems it is essential that:
+
+- **Duplicate events are not processed**: the message broker may deliver the same message more than once (at-least-once delivery)
+- **Operations are idempotent**: processing the same event several times has the same result as processing it once
+- **Granularity is per handler**: different handlers may need to process the same event, so tracking is per `EventId + HandlerName` combination
+
+### Solution architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  Integration Event Handler                                  │
 │  ┌────────────────────────────────────────────────────────┐ │
-│  │ 1. Recibe Evento                                       │ │
-│  │ 2. Verifica si ya fue procesado (IsProcessedAsync)    │ │
-│  │ 3. Si duplicado → Skip                                 │ │
-│  │ 4. Procesa lógica de negocio                          │ │
-│  │ 5. Marca como procesado (MarkAsProcessedAsync)        │ │
+│  │ 1. Receive event                                       │ │
+│  │ 2. Check whether it was processed (IsProcessedAsync)   │ │
+│  │ 3. If duplicate → skip                                 │ │
+│  │ 4. Run business logic                                  │ │
+│  │ 5. Mark as processed (MarkAsProcessedAsync)            │ │
 │  └────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
                            │
@@ -61,25 +61,25 @@ En sistemas distribuidos basados en eventos, es fundamental garantizar que:
 
 ---
 
-## 📝 Componentes Implementados
+## 📝 Implemented Components
 
-### 1. **ProcessedIntegrationEvent** - Entidad de Tracking
+### 1. **ProcessedIntegrationEvent** - tracking entity
 
-Registra qué eventos han sido procesados por qué handlers:
+Records which events have been processed by which handlers:
 
 ```csharp
 public class ProcessedIntegrationEvent
 {
-    public Guid EventId { get; set; }          // ID del evento original
-    public string HandlerName { get; set; }    // Nombre del handler
-    public DateTime ProcessedAt { get; set; }  // Timestamp de procesamiento
-    public string? EventType { get; set; }     // Tipo de evento (auditoría)
+    public Guid EventId { get; set; }          // ID of the original event
+    public string HandlerName { get; set; }    // Handler name
+    public DateTime ProcessedAt { get; set; }  // Processing timestamp
+    public string? EventType { get; set; }     // Event type (auditing)
 }
 ```
 
-**Composite Key**: `EventId + HandlerName` permite que diferentes handlers procesen el mismo evento.
+**Composite key**: `EventId + HandlerName` lets different handlers process the same event.
 
-### 2. **IEventIdempotencyService** - Contrato del Servicio
+### 2. **IEventIdempotencyService** - service contract
 
 ```csharp
 public interface IEventIdempotencyService
@@ -89,9 +89,9 @@ public interface IEventIdempotencyService
 }
 ```
 
-### 3. **EventIdempotencyService<TContext>** - Implementación
+### 3. **EventIdempotencyService<TContext>** - implementation
 
-Servicio genérico que funciona con cualquier `DbContext`:
+Generic service that works with any `DbContext`:
 
 ```csharp
 public class EventIdempotencyService<TContext> : IEventIdempotencyService 
@@ -122,9 +122,9 @@ public class EventIdempotencyService<TContext> : IEventIdempotencyService
 }
 ```
 
-### 4. **Configuración en DbContext**
+### 4. **DbContext configuration**
 
-Uso del extension method `UseEventIdempotency()`:
+Through the `UseEventIdempotency()` extension method:
 
 ```csharp
 public class IdentityContext : DbContext
@@ -132,12 +132,12 @@ public class IdentityContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("identity");
-        modelBuilder.UseEventIdempotency();  // ← Registra tabla y configuración
+        modelBuilder.UseEventIdempotency();  // ← Registers the table and its configuration
     }
 }
 ```
 
-**Extension Method**:
+**Extension method**:
 
 ```csharp
 public static void UseEventIdempotency(this ModelBuilder builder)
@@ -157,9 +157,9 @@ public static void UseEventIdempotency(this ModelBuilder builder)
 
 ---
 
-## 🔄 Flujo de Procesamiento Paso a Paso
+## 🔄 Step-by-Step Processing Flow
 
-### Ejemplo: `OrganizationCreatedIntegrationEventHandler`
+### Example: `OrganizationCreatedIntegrationEventHandler`
 
 ```csharp
 public class OrganizationCreatedIntegrationEventHandler 
@@ -171,18 +171,18 @@ public class OrganizationCreatedIntegrationEventHandler
     {
         var handlerName = GetType().Name; // "OrganizationCreatedIntegrationEventHandler"
 
-        // ✅ PASO 1: Verificar si ya fue procesado
+        // ✅ STEP 1: Check whether it was already processed
         if (await _idempotencyService.IsProcessedAsync(@event.Id, handlerName))
         {
             _logger.LogWarning("Event {EventId} already processed. Skipping duplicate.", @event.Id);
-            return; // ← Salir sin procesar
+            return; // ← Exit without processing
         }
 
-        // ✅ PASO 2: Ejecutar lógica de negocio
+        // ✅ STEP 2: Run business logic
         var tenant = await CreateTenantAsync(@event);
         var adminUser = await CreateAdminUserAsync(@event, tenant.Id);
 
-        // ✅ PASO 3: Marcar como procesado
+        // ✅ STEP 3: Mark as processed
         await _idempotencyService.MarkAsProcessedAsync(
             @event.Id, 
             handlerName, 
@@ -194,21 +194,21 @@ public class OrganizationCreatedIntegrationEventHandler
 }
 ```
 
-### Escenario de Duplicación
+### Duplicate scenario
 
-**Sin idempotencia:**
+**Without idempotency:**
 ```
-Event duplicado → Crea tenant duplicado → Crea admin user duplicado → ❌ Error de constraint o datos duplicados
+Duplicate event → duplicate tenant → duplicate admin user → ❌ constraint error or duplicate data
 ```
 
-**Con idempotencia:**
+**With idempotency:**
 ```
-Event duplicado → IsProcessedAsync() retorna true → Skip procesamiento → ✅ Sin efectos secundarios
+Duplicate event → IsProcessedAsync() returns true → processing skipped → ✅ no side effects
 ```
 
 ---
 
-## 🗄️ Esquema de Base de Datos
+## 🗄️ Database Schema
 
 ```sql
 CREATE TABLE identity.ProcessedIntegrationEvents (
@@ -223,69 +223,69 @@ CREATE INDEX IX_ProcessedIntegrationEvents_EventId ON identity.ProcessedIntegrat
 CREATE INDEX IX_ProcessedIntegrationEvents_ProcessedAt ON identity.ProcessedIntegrationEvents (ProcessedAt);
 ```
 
-**Índices:**
-- **EventId**: Búsquedas rápidas por evento
-- **ProcessedAt**: Útil para jobs de limpieza/archivado
+**Indexes:**
+- **EventId**: fast lookups by event
+- **ProcessedAt**: useful for cleanup/archiving jobs
 
 ---
 
-## ⚙️ Registro de Servicios
+## ⚙️ Service Registration
 
-### En Identity.API
+### In Identity.API
 
 ```csharp
 builder.Services.AddScoped<IEventIdempotencyService, EventIdempotencyService<IdentityContext>>();
 ```
 
-### En Otros Microservicios
+### In other microservices
 
-Cada API que consuma eventos debe registrar el servicio con su propio `DbContext`:
+Every API that consumes events registers the service with its own `DbContext`:
 
 ```csharp
-// En Accounts.API
+// In Accounts.API
 builder.Services.AddScoped<IEventIdempotencyService, EventIdempotencyService<AccountContext>>();
 
-// En un futuro Courses.API (ejemplo hipotético)
+// In a future Courses.API (hypothetical example)
 builder.Services.AddScoped<IEventIdempotencyService, EventIdempotencyService<CourseContext>>();
 ```
 
 ---
 
-## ✅ Verificación Práctica
+## ✅ Practical Verification
 
-### 1. Migración
+### 1. Migration
 
-La tabla se crea en la migración `Initial` de `IdentityContext` (`src/uSLearn.Identity.API/Infrastructure/Migrations`). No hay que aplicarla a mano: `AddMigration<IdentityContext, IdentityContextSeed>()` migra la base de datos al arrancar el servicio.
+The table is created by `IdentityContext`'s `Initial` migration (`src/uSLearn.Identity.API/Infrastructure/Migrations`). There's no need to apply it by hand: `AddMigration<IdentityContext, IdentityContextSeed>()` migrates the database when the service starts.
 
 ```bash
 dotnet run --project src/uSLearn.AppHost
 ```
 
-### 2. Validar Tabla Creada
+### 2. Check the table
 
 ```sql
 SELECT * FROM [identity].ProcessedIntegrationEvents;
 ```
 
-### 3. Crear una organización
+### 3. Create an organization
 
-Con un `PUT /api/accounts` (ver Stage.03-2) se publica `OrganizationCreatedIntegrationEvent`, y `Identity.API` lo procesa y lo registra en `ProcessedIntegrationEvents`.
+A `PUT /api/accounts` (see Stage.03-2) publishes `OrganizationCreatedIntegrationEvent`; `Identity.API` processes it and records it in `ProcessedIntegrationEvents`.
 
-### 4. Simular Evento Duplicado (opcional)
+### 4. Simulate a duplicate event (optional)
 
-Enviar el mismo evento dos veces desde RabbitMQ o crear dos organizaciones con el mismo event ID:
+Deliver the same event twice from RabbitMQ:
 
-**Primera vez:**
+**First time:**
 ```
-✅ Procesa evento → Crea tenant y admin user → Registra en ProcessedIntegrationEvents
-```
-
-**Segunda vez (duplicado):**
-```
-✅ Detecta evento ya procesado → Skip → Log: "Event already processed. Skipping duplicate."
+✅ Process event → create tenant and admin user → record in ProcessedIntegrationEvents
 ```
 
-### 5. Verificar Logs
+**Second time (duplicate):**
+```
+✅ Event already processed → skip → log: "Event already processed. Skipping duplicate."
+```
+
+### 5. Check the logs
 
 ```
 [Information] Identity - Processing organization created event: 123e4567-e89b-12d3-a456-426614174000
@@ -295,48 +295,48 @@ Enviar el mismo evento dos veces desde RabbitMQ o crear dos organizaciones con e
 
 ---
 
-## 🔍 Consideraciones Importantes
+## 🔍 Important Considerations
 
-### Transaccionalidad
+### Transactionality
 
-⚠️ **Problema potencial**: Si `MarkAsProcessedAsync()` se ejecuta en una transacción separada, podría haber race conditions.
+⚠️ **Potential problem**: `MarkAsProcessedAsync()` runs in a separate save, so the business logic and the idempotency record are not atomic, and race conditions are possible.
 
-**Solución (Stage.03-4)**: Usar `ResilientTransaction` para garantizar que la lógica de negocio y el registro de idempotencia ocurran en la misma transacción.
+**Solution (Stage.03-4)**: use `ResilientTransaction` so the business logic and the idempotency record are committed in the same transaction.
 
-### Limpieza de Datos Históricos
+### Cleaning up historical data
 
-Con el tiempo, la tabla `ProcessedIntegrationEvents` crecerá. Consideraciones:
+The `ProcessedIntegrationEvents` table grows over time. Options:
 
-- **Archivado**: Mover eventos antiguos (> 90 días) a tabla de históricos
-- **Purga**: Eliminar eventos muy antiguos si no son necesarios para auditoría
-- **Job programado**: Implementar background job para limpieza automática
+- **Archiving**: move old events (> 90 days) to a history table
+- **Purging**: delete very old events if they aren't needed for auditing
+- **Scheduled job**: a background job for automatic cleanup
 
-### Granularidad de HandlerName
+### HandlerName granularity
 
-Actualmente usamos `GetType().Name`, lo que significa:
+We currently use `GetType().Name`, which means:
 
 ```
 "OrganizationCreatedIntegrationEventHandler"
 ```
 
-Si cambias el nombre de la clase, se tratará como un handler nuevo. Alternativas:
+If the class is renamed, it is treated as a new handler. Alternatives:
 
-- Usar nombre completo con namespace: `GetType().FullName`
-- Usar un identificador estático: `const string HandlerName = "OrganizationCreated.Identity"`
-
----
-
-## 🚀 Próximos Pasos
-
-### Stage.03-4: Transacciones Resilientes
-
-- Pasar tenant y usuario administrador de los repositorios en memoria a EF Core.
-- Usar `ResilientTransaction` para que la lógica de negocio y el registro de idempotencia se confirmen en una única transacción atómica, con reintentos ante fallos transitorios.
+- Use the full name with namespace: `GetType().FullName`
+- Use a static identifier: `const string HandlerName = "OrganizationCreated.Identity"`
 
 ---
 
-## 📚 Referencias
+## 🚀 Next Steps
 
-- [Idempotent Message Processing](https://microservices.io/patterns/communication-style/idempotent-consumer.html)
-- [Event-Driven Architecture Patterns](https://docs.microsoft.com/azure/architecture/patterns/category/messaging)
-- [EF Core Composite Keys](https://learn.microsoft.com/ef/core/modeling/keys)
+### Stage.03-4: Resilient transactions
+
+- Move the tenant and admin user from the in-memory repositories to EF Core.
+- Use `ResilientTransaction` so the business logic and the idempotency record are committed in a single atomic transaction, with retries on transient failures.
+
+---
+
+## 📚 References
+
+- [Idempotent consumer](https://microservices.io/patterns/communication-style/idempotent-consumer.html)
+- [Messaging patterns](https://learn.microsoft.com/azure/architecture/patterns/category/messaging)
+- [EF Core composite keys](https://learn.microsoft.com/ef/core/modeling/keys)

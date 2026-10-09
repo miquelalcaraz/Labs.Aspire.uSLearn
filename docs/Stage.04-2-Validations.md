@@ -1,114 +1,114 @@
-# Stage.04-2 - Validaciones con FluentValidation
+# Stage.04-2 - Validation with FluentValidation
 
-## 🎯 Objetivo de la Etapa
+## 🎯 Stage Goal
 
-Implementar un **sistema de validación robusto y reutilizable** basado en FluentValidation que proporcione:
+Implement a **robust, reusable validation system** based on FluentValidation that provides:
 
-- Validación automática de commands/queries con FluentValidation
-- Respuestas HTTP estructuradas (400 Bad Request) con errores agrupados
-- Manejo global de excepciones con formato RFC 9110
-- ValidationBehavior en Core.Application para reutilización en todos los microservicios
-- Separación clara entre errores de validación (400) y errores internos (500)
+- Automatic validation of commands/queries with FluentValidation
+- Structured HTTP responses (400 Bad Request) with grouped errors
+- Global exception handling in RFC 9110 format
+- A `ValidationBehavior` in Core.Application, reusable by every microservice
+- A clear split between validation errors (400) and internal errors (500)
 
 ---
 
-## 🏗️ Decisiones Arquitectónicas
+## 🏗️ Architectural Decisions
 
-### ¿Por qué FluentValidation?
+### Why FluentValidation?
 
-FluentValidation es la biblioteca estándar de facto para validación declarativa en .NET. Ventajas:
+FluentValidation is the de facto standard library for declarative validation in .NET. Advantages:
 
-- **Declarativo**: Reglas de validación expresivas y legibles
-- **Reutilizable**: Validadores independientes y testeables
-- **Integración MediatR**: Se integra naturalmente con pipeline behaviors
-- **Extensible**: Fácil crear reglas personalizadas
-- **Localizable**: Soporte nativo para mensajes de error multiidioma
+- **Declarative**: expressive, readable validation rules
+- **Reusable**: independent, testable validators
+- **MediatR integration**: fits naturally into pipeline behaviors
+- **Extensible**: custom rules are easy to write
+- **Localizable**: built-in support for multi-language error messages
 
-### Patrón: Pipeline Behavior + Middleware
+### Pattern: pipeline behavior + middleware
 
-Implementamos validación en **dos capas**:
+Validation is implemented in **two layers**:
 
-1. **`ValidationBehavior<TRequest, TResponse>`** (MediatR Pipeline)
-   - Valida commands/queries antes de llegar al handler
-   - Lanza `ValidationException` con errores estructurados
-   - Se ejecuta después de LoggingBehavior y antes de TransactionBehavior
+1. **`ValidationBehavior<TRequest, TResponse>`** (MediatR pipeline)
+   - Validates commands/queries before they reach the handler
+   - Throws `ValidationException` with structured errors
+   - Runs after `LoggingBehavior` and before `TransactionBehavior`
 
-2. **`ExceptionHandlingMiddleware`** (ASP.NET Core Pipeline)
-   - Captura `ValidationException` → retorna **400 Bad Request**
-   - Captura `BadHttpRequestException` (p. ej. falta la cabecera `x-requestid`) → retorna su código, normalmente **400**
-   - Captura otras excepciones → retorna **500 Internal Server Error**
-   - Formatea respuestas con RFC 9110 (Problem Details)
+2. **`ExceptionHandlingMiddleware`** (ASP.NET Core pipeline)
+   - Catches `ValidationException` → returns **400 Bad Request**
+   - Catches `BadHttpRequestException` (e.g. missing `x-requestid` header) → returns its status code, usually **400**
+   - Catches any other exception → returns **500 Internal Server Error**
+   - Formats responses as RFC 9110 problem details
 
-**Orden del pipeline**:
+**Pipeline order**:
 
-El endpoint envía un `IdentifiedCommand` que envuelve al `CreateOrganizationCommand`, así que los behaviors se ejecutan **dos veces**:
+The endpoint sends an `IdentifiedCommand` that wraps the `CreateOrganizationCommand`, so the behaviors run **twice**:
 
 ```
 HTTP Request
     ↓
-ExceptionHandlingMiddleware ← Captura TODAS las excepciones
+ExceptionHandlingMiddleware ← Catches ALL exceptions
     ↓
 Endpoint → Mediator.Send(IdentifiedCommand)
     ↓
-LoggingBehavior → ValidationBehavior (sin validador, pasa) → TransactionBehavior (ABRE la transacción)
+LoggingBehavior → ValidationBehavior (no validator, passes) → TransactionBehavior (OPENS the transaction)
     ↓
-IdentifiedCommandHandler → guarda Request ID → Mediator.Send(CreateOrganizationCommand)
+IdentifiedCommandHandler → saves request ID → Mediator.Send(CreateOrganizationCommand)
     ↓
-LoggingBehavior → ValidationBehavior (VALIDA) → TransactionBehavior (ya hay transacción, no abre otra)
+LoggingBehavior → ValidationBehavior (VALIDATES) → TransactionBehavior (transaction already open, doesn't open another)
     ↓
 CreateOrganizationCommandHandler
 ```
 
-Consecuencia: cuando el comando de negocio es inválido, la transacción **ya está abierta** (la abrió el `IdentifiedCommand`). La `ValidationException` provoca el rollback, incluido el Request ID, por lo que el cliente puede corregir la petición y reenviarla con el mismo `x-requestid`.
+Consequence: when the business command is invalid, the transaction is **already open** (the `IdentifiedCommand` opened it). The `ValidationException` triggers the rollback, including the request ID, so the client can fix the request and resend it with the same `x-requestid`.
 
-### ¿Por qué un Middleware Unificado?
+### Why a single middleware?
 
-**Problema original**: Teníamos `ValidationExceptionMiddleware` + `UseExceptionHandler()`, pero `UseExceptionHandler` capturaba excepciones **antes** que nuestro middleware.
+**Original problem**: we had `ValidationExceptionMiddleware` + `UseExceptionHandler()`, but `UseExceptionHandler` caught exceptions **before** our middleware.
 
-**Solución**: `ExceptionHandlingMiddleware` unificado que:
-- Captura ValidationException → 400 con errores estructurados
-- Captura cualquier otra excepción → 500 con detalles solo en Development
-- Reemplaza `UseExceptionHandler()` completamente
-- Se registra como **primer middleware** en el pipeline
+**Solution**: a single `ExceptionHandlingMiddleware` that:
+- Catches `ValidationException` → 400 with structured errors
+- Catches any other exception → 500, with details only in Development
+- Completely replaces `UseExceptionHandler()`
+- Is registered as the **first middleware** in the pipeline
 
 ---
 
-## 📦 Estructura Implementada
+## 📦 Implemented Structure
 
 ```
 src/
-├── Core.Application/   ← renombrado (antes uSLearn.Core.Application)
+├── Core.Application/   ← renamed (was uSLearn.Core.Application)
 │   ├── Behaviors/
-│   │   └── ValidationBehavior.cs ← NUEVO (genérico, reutilizable)
+│   │   └── ValidationBehavior.cs ← NEW (generic, reusable)
 │   └── Exceptions/
-│       └── ValidationException.cs ← NUEVO (excepción estructurada)
+│       └── ValidationException.cs ← NEW (structured exception)
 │
 ├── uSLearn.Accounts.API/
 │   ├── Application/
 │   │   └── Validators/
-│   │       └── CreateOrganizationCommandValidator.cs ← NUEVO
+│   │       └── CreateOrganizationCommandValidator.cs ← NEW
 │   ├── Infrastructure/
 │   │   └── Middleware/
-│   │       └── ExceptionHandlingMiddleware.cs ← RENOMBRADO (antes ValidationExceptionMiddleware)
-│   ├── Extensions/Extensions.cs (actualizado - registro MediatR behaviors)
-│   └── Program.cs (actualizado - registro middleware)
+│   │       └── ExceptionHandlingMiddleware.cs ← RENAMED (was ValidationExceptionMiddleware)
+│   ├── Extensions/Extensions.cs (updated - MediatR behaviors registration)
+│   └── Program.cs (updated - middleware registration)
 ```
 
 ---
 
-## 🔧 Componentes Implementados
+## 🔧 Implemented Components
 
-### 1. `ValidationException` (Custom Exception)
+### 1. `ValidationException` (custom exception)
 
-**Ubicación**: `src/Core.Application/Exceptions/ValidationException.cs`
+**Location**: `src/Core.Application/Exceptions/ValidationException.cs`
 
-**Características**:
-- Hereda de `Exception`
-- Contiene `IDictionary<string, string[]> Errors` con errores agrupados por propiedad
-- Constructor que recibe `IEnumerable<ValidationFailure>` de FluentValidation
-- Agrupa errores automáticamente por `PropertyName`
+**Characteristics**:
+- Inherits from `Exception`
+- Holds an `IDictionary<string, string[]> Errors` with errors grouped by property
+- Constructor that takes FluentValidation's `IEnumerable<ValidationFailure>`
+- Groups errors automatically by `PropertyName`
 
-**Código**:
+**Code**:
 
 ```csharp
 public class ValidationException : Exception
@@ -134,7 +134,7 @@ public class ValidationException : Exception
 }
 ```
 
-**Ejemplo de estructura de `Errors`**:
+**Example `Errors` structure** (keys are serialized in camelCase):
 ```json
 {
   "name": ["Organization name is required"],
@@ -148,18 +148,18 @@ public class ValidationException : Exception
 
 ---
 
-### 2. `ValidationBehavior<TRequest, TResponse>` (Genérico)
+### 2. `ValidationBehavior<TRequest, TResponse>` (generic)
 
-**Ubicación**: `src/Core.Application/Behaviors/ValidationBehavior.cs`
+**Location**: `src/Core.Application/Behaviors/ValidationBehavior.cs`
 
-**Características**:
-- ✅ Inyecta `IEnumerable<IValidator<TRequest>>` (todos los validadores registrados para el request)
-- ✅ Valida en paralelo con `Task.WhenAll`
-- ✅ Agrega todos los errores de todos los validadores
-- ✅ Lanza `ValidationException` si hay fallos
-- ✅ Skip automático si no hay validadores registrados
+**Characteristics**:
+- ✅ Injects `IEnumerable<IValidator<TRequest>>` (every validator registered for the request)
+- ✅ Validates in parallel with `Task.WhenAll`
+- ✅ Aggregates the errors of all validators
+- ✅ Throws `ValidationException` if anything fails
+- ✅ Skips automatically when no validators are registered
 
-**Código completo**:
+**Full code**:
 
 ```csharp
 public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
@@ -203,24 +203,24 @@ public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TReques
 }
 ```
 
-**Ventajas**:
-- Reutilizable en Accounts.API, Identity.API y futuros microservicios
-- No requiere configuración adicional por validator
-- Compatible con MediatR 14.x
+**Advantages**:
+- Reusable in Accounts.API, Identity.API and future microservices
+- No extra configuration per validator
+- Compatible with MediatR 14.x
 
 ---
 
-### 3. `CreateOrganizationCommandValidator` (Ejemplo de Uso)
+### 3. `CreateOrganizationCommandValidator` (usage example)
 
-**Ubicación**: `uSLearn.Accounts.API/Application/Validators/CreateOrganizationCommandValidator.cs`
+**Location**: `uSLearn.Accounts.API/Application/Validators/CreateOrganizationCommandValidator.cs`
 
-**Características**:
-- Hereda de `AbstractValidator<CreateOrganizationCommand>`
-- Define reglas con FluentAPI: `RuleFor`, `NotEmpty`, `MaximumLength`, `Matches`, `IsInEnum`, `When`
-- Mensajes de error personalizados
-- Validación condicional para campos opcionales
+**Characteristics**:
+- Inherits from `AbstractValidator<CreateOrganizationCommand>`
+- Defines rules with the fluent API: `RuleFor`, `NotEmpty`, `MaximumLength`, `Matches`, `IsInEnum`, `When`
+- Custom error messages
+- Conditional validation for optional fields
 
-**Ejemplo de reglas**:
+**Sample rules**:
 
 ```csharp
 public class CreateOrganizationCommandValidator : AbstractValidator<CreateOrganizationCommand>
@@ -253,32 +253,33 @@ public class CreateOrganizationCommandValidator : AbstractValidator<CreateOrgani
                 .MaximumLength(500).WithMessage("Street cannot exceed 500 characters");
         });
 
-        // ... más reglas
+        // ... more rules
     }
 }
 ```
 
-**Registro automático** (en `Extensions.cs`):
+**Automatic registration** (in `Extensions.cs`):
 ```csharp
 services.AddValidatorsFromAssemblyContaining<Program>();
 ```
 
-Esto auto-descubre y registra **todos los validadores** del assembly con lifetime `Transient`.
+This discovers and registers **every validator** in the assembly with a `Transient` lifetime.
 
 ---
 
-### 4. `ExceptionHandlingMiddleware` (Global Exception Handler)
+### 4. `ExceptionHandlingMiddleware` (global exception handler)
 
-**Ubicación**: `uSLearn.Accounts.API/Infrastructure/Middleware/ExceptionHandlingMiddleware.cs`
+**Location**: `uSLearn.Accounts.API/Infrastructure/Middleware/ExceptionHandlingMiddleware.cs`
 
-**Características**:
-- ✅ Captura `ValidationException` → **400 Bad Request**
-- ✅ Captura cualquier otra excepción → **500 Internal Server Error**
-- ✅ Formato RFC 9110 (Problem Details) para todas las respuestas
-- ✅ Logging apropiado: `LogWarning` para 400, `LogError` para 500
-- ✅ Detalles de excepción solo en Development (security)
+**Characteristics**:
+- ✅ Catches `ValidationException` → **400 Bad Request**
+- ✅ Catches `BadHttpRequestException` → its own status code (usually **400**)
+- ✅ Catches any other exception → **500 Internal Server Error**
+- ✅ RFC 9110 problem details format for every response
+- ✅ Appropriate logging: `LogWarning` for 400, `LogError` for 500
+- ✅ Exception details only in Development (security)
 
-**Código**:
+**Code**:
 
 ```csharp
 public class ExceptionHandlingMiddleware
@@ -339,7 +340,7 @@ public class ExceptionHandlingMiddleware
             title = "An error occurred while processing your request.",
             status = 500,
             traceId = context.TraceIdentifier,
-            // Solo en Development
+            // Only in Development
             detail = _environment.IsDevelopment() ? exception.Message : null,
             stackTrace = _environment.IsDevelopment() ? exception.StackTrace : null
         };
@@ -349,53 +350,53 @@ public class ExceptionHandlingMiddleware
 }
 ```
 
-**Registro en `Program.cs`**:
+**Registration in `Program.cs`**:
 ```csharp
 var app = builder.Build();
 
-// CRÍTICO: Debe ser el PRIMER middleware
+// CRITICAL: must be the FIRST middleware
 app.UseMiddleware<ExceptionHandlingMiddleware>();
-// NO usar app.UseExceptionHandler() (reemplazado por nuestro middleware)
+// Do NOT use app.UseExceptionHandler() (replaced by our middleware)
 ```
 
 ---
 
-## 📋 Registro de Servicios
+## 📋 Service Registration
 
-**Ubicación**: `uSLearn.Accounts.API/Extensions/Extensions.cs`
+**Location**: `uSLearn.Accounts.API/Extensions/Extensions.cs`
 
 ```csharp
 public static IHostApplicationBuilder AddApplicationServices(this IHostApplicationBuilder builder)
 {
-    // FluentValidation: auto-discovery de validadores
+    // FluentValidation: validator auto-discovery
     builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
-    // MediatR con behaviors en orden específico
+    // MediatR with behaviors in a specific order
     builder.Services.AddMediatR(cfg =>
     {
         cfg.RegisterServicesFromAssemblyContaining<Program>();
         
-        // ORDEN CRÍTICO: Logging → Validation → Transaction → Handler
+        // CRITICAL ORDER: Logging → Validation → Transaction → Handler
         cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));       // 1. Performance tracking
-        cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));    // 2. Validación (lanza excepción)
-        cfg.AddOpenBehavior(typeof(TransactionBehavior<,>));   // 3. Transacción DB (si llega aquí)
+        cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));    // 2. Validation (throws)
+        cfg.AddOpenBehavior(typeof(TransactionBehavior<,>));   // 3. DB transaction (if it gets here)
     });
 
-    // IRequestContextAccessor para LoggingBehavior
+    // IRequestContextAccessor for LoggingBehavior
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddScoped<IRequestContextAccessor, HttpRequestContextAccessor>();
 
-    // ... otros servicios
+    // ... other services
 }
 ```
 
 ---
 
-## 🧪 Flujo de Validación (Ejemplo Completo)
+## 🧪 Validation Flow (Full Example)
 
-### Request Inválido
+### Invalid request
 
-**HTTP Request**:
+**HTTP request**:
 ```http
 PUT /api/accounts?api-version=1.0 HTTP/1.1
 x-requestid: f61cb746-a0cf-4bff-80c3-d12f18cb6380
@@ -410,26 +411,26 @@ Content-Type: application/json
 }
 ```
 
-### Flujo Interno
+### Internal flow
 
-1. **Endpoint** recibe request → Crea `IdentifiedCommand<CreateOrganizationCommand>` → `Mediator.Send(...)` → `TransactionBehavior` abre la transacción → `IdentifiedCommandHandler` envía el `CreateOrganizationCommand`
+1. **Endpoint** receives the request → creates `IdentifiedCommand<CreateOrganizationCommand>` → `Mediator.Send(...)` → `TransactionBehavior` opens the transaction → `IdentifiedCommandHandler` sends the `CreateOrganizationCommand`
 
-2. **LoggingBehavior** → Log: `"Handling command CreateOrganizationCommand with RequestId f61cb746..."`
+2. **LoggingBehavior** → log: `"Handling command CreateOrganizationCommand with RequestId f61cb746..."`
 
 3. **ValidationBehavior**:
-   - Encuentra `CreateOrganizationCommandValidator`
-   - Ejecuta validación asíncrona
-   - Encuentra errores en 7 propiedades
-   - **Lanza `ValidationException`** con errores estructurados
+   - Finds `CreateOrganizationCommandValidator`
+   - Runs the validation asynchronously
+   - Finds errors in 7 properties
+   - **Throws `ValidationException`** with structured errors
 
-4. **LoggingBehavior** (catch) → Log: `"Error handling command CreateOrganizationCommand after 114ms"`
+4. **LoggingBehavior** (catch) → log: `"Error handling command CreateOrganizationCommand after 114ms"`
 
 5. **ExceptionHandlingMiddleware** (catch):
-   - Detecta `ValidationException`
+   - Detects `ValidationException`
    - Log: `"Validation failed for PUT /api/accounts"`
-   - Retorna **400 Bad Request**
+   - Returns **400 Bad Request**
 
-### HTTP Response (400)
+### HTTP response (400)
 
 ```json
 {
@@ -452,7 +453,7 @@ Content-Type: application/json
 }
 ```
 
-### Logs Generados
+### Generated logs
 
 ```
 [Information] Handling command CreateOrganizationCommand with RequestId F61CB746-A0CF-4BFF-80C3-D12F18CB6380
@@ -462,9 +463,9 @@ Content-Type: application/json
 
 ---
 
-## ✅ Verificación Práctica
+## ✅ Practical Verification
 
-### 1. Test con Request Inválido
+### 1. Invalid request
 
 ```bash
 curl -X PUT https://localhost:7375/api/accounts?api-version=1.0 \
@@ -473,9 +474,9 @@ curl -X PUT https://localhost:7375/api/accounts?api-version=1.0 \
   -d '{"name":"","legalName":"","taxIdNumber":"","country":"","zipCode":""}'
 ```
 
-**Resultado esperado**: 400 Bad Request con errores estructurados
+**Expected result**: 400 Bad Request with structured errors
 
-### 2. Test con Request Válido
+### 2. Valid request
 
 ```bash
 curl -X PUT https://localhost:7375/api/accounts?api-version=1.0 \
@@ -495,11 +496,11 @@ curl -X PUT https://localhost:7375/api/accounts?api-version=1.0 \
   }'
 ```
 
-**Resultado esperado**: 200 OK
+**Expected result**: 200 OK
 
-> `organizationType` es obligatorio: si se omite, vale `0`, que no es un valor válido del enum, y la API responde 400 con `"organizationType": ["Invalid organization type"]`.
+> `organizationType` is required: if omitted it defaults to `0`, which isn't a valid enum value, and the API returns 400 with `"organizationType": ["Invalid organization type"]`.
 
-### 3. Test sin cabecera `x-requestid`
+### 3. Request without the `x-requestid` header
 
 ```bash
 curl -X PUT https://localhost:7375/api/accounts?api-version=1.0 \
@@ -507,11 +508,11 @@ curl -X PUT https://localhost:7375/api/accounts?api-version=1.0 \
   -d '{"name":"Acme Corp"}'
 ```
 
-**Resultado esperado**: 400 Bad Request con `"detail": "Required parameter \"Guid requestId\" was not provided from header."`
+**Expected result**: 400 Bad Request with `"detail": "Required parameter \"Guid requestId\" was not provided from header."`
 
-### 4. Test de Error Interno (Simular Exception)
+### 4. Internal error (simulated exception)
 
-Modificar temporalmente el handler para lanzar una excepción:
+Temporarily change the handler to throw an exception:
 
 ```csharp
 public class CreateOrganizationCommandHandler : IRequestHandler<CreateOrganizationCommand, bool>
@@ -523,25 +524,25 @@ public class CreateOrganizationCommandHandler : IRequestHandler<CreateOrganizati
 }
 ```
 
-**Resultado esperado**: 500 Internal Server Error con formato RFC 9110
+**Expected result**: 500 Internal Server Error in RFC 9110 format
 
 ---
 
-## 🔄 Reutilización en Otros Microservicios
+## 🔄 Reuse in Other Microservices
 
-Para usar validaciones en `Identity.API` o futuros microservicios:
+To add validation to `Identity.API` or future microservices:
 
-### 1. Instalar FluentValidation
+### 1. Install FluentValidation
 
 ```xml
 <PackageReference Include="FluentValidation" Version="12.1.1" />
 <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
 ```
 
-### 2. Crear Validadores
+### 2. Create validators
 
 ```csharp
-// Identity.API/Application/Validators/LoginCommandValidator.cs
+// Identity.API/Application/Validators/LoginCommandValidator.cs (hypothetical example)
 public class LoginCommandValidator : AbstractValidator<LoginCommand>
 {
     public LoginCommandValidator()
@@ -557,7 +558,7 @@ public class LoginCommandValidator : AbstractValidator<LoginCommand>
 }
 ```
 
-### 3. Registrar en Extensions.cs
+### 3. Register in Extensions.cs
 
 ```csharp
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
@@ -567,34 +568,34 @@ builder.Services.AddMediatR(cfg =>
     cfg.RegisterServicesFromAssemblyContaining<Program>();
     cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));      // Core.Application
     cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));   // Core.Application
-    // ... otros behaviors
+    // ... other behaviors
 });
 ```
 
-### 4. Copiar ExceptionHandlingMiddleware y Registrar en Program.cs
+### 4. Copy ExceptionHandlingMiddleware and register it in Program.cs
 
 ```csharp
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 ```
 
-**¡Listo!** Validaciones funcionando con el mismo comportamiento en todos los microservicios.
+**Done!** Validation behaves the same way in every microservice.
 
 ---
 
-## 📚 Referencias
+## 📚 References
 
-- [FluentValidation Documentation](https://docs.fluentvalidation.net/)
+- [FluentValidation documentation](https://docs.fluentvalidation.net/)
 - [RFC 9110 - HTTP Semantics](https://tools.ietf.org/html/rfc9110)
-- [MediatR Pipeline Behaviors](https://github.com/jbogard/MediatR/wiki/Behaviors)
-- [ASP.NET Core Middleware](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/middleware/)
+- [MediatR pipeline behaviors](https://github.com/jbogard/MediatR/wiki/Behaviors)
+- [ASP.NET Core middleware](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/middleware/)
 
 ---
 
-## 🎯 Próximos Pasos
+## 🎯 Next Steps
 
-- **Stage.04-3**: Telemetría con OpenTelemetry (métricas, traces, spans)
-- **Mejoras opcionales**:
-  - Validadores con dependencias (acceso a DB para validaciones complejas)
-  - Localización de mensajes de error (multi-idioma)
-  - Validaciones asíncronas con reglas personalizadas (`MustAsync`)
-  - Rate limiting por endpoint basado en ValidationException count
+- **Stage.04-3**: Telemetry with OpenTelemetry (metrics, traces, spans)
+- **Optional improvements**:
+  - Validators with dependencies (DB access for complex validations)
+  - Localized error messages (multi-language)
+  - Async validation with custom rules (`MustAsync`)
+  - Per-endpoint rate limiting based on the number of validation failures

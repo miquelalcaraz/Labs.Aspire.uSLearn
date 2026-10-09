@@ -1,100 +1,99 @@
-# Stage.04-3 - Telemetría con OpenTelemetry
+# Stage.04-3 - Telemetry with OpenTelemetry
 
-## 🎯 Objetivo de la Etapa
+## 🎯 Stage Goal
 
-Implementar **telemetría completa y observable** con OpenTelemetry que proporcione:
+Implement **complete, observable telemetry** with OpenTelemetry that provides:
 
-- Distributed tracing con `ActivitySource` personalizado para behaviors, transacciones y eventos
-- Métricas personalizadas con `Meter` (counters, histograms) para comandos, validaciones y eventos
-- Instrumentación de eventos de dominio e integración con RabbitMQ
-- Propagación de trace context en mensajería (distributed tracing end-to-end)
-- Compatibilidad con múltiples backends (Azure Monitor, Grafana, Elastic, Jaeger, etc.) sin cambios de código
-
----
-
-## 🏗️ Decisiones Arquitectónicas
-
-### ¿Por qué OpenTelemetry?
-
-OpenTelemetry es el **estándar abierto** para observabilidad, respaldado por CNCF (Cloud Native Computing Foundation). Ventajas:
-
-- **Vendor-agnostic**: Compatible con Azure Monitor, Grafana, Datadog, New Relic, Elastic, etc.
-- **Un solo SDK**: Unified API para traces, metrics y logs
-- **Protocolo estándar (OTLP)**: Cambias de backend sin tocar código
-- **Ecosistema maduro**: Instrumentación automática para frameworks populares
-- **Futuro-proof**: Adoptado por Microsoft, Google, AWS como estándar
-
-### ¿Por qué `System.Diagnostics.ActivitySource` y `System.Diagnostics.Metrics.Meter`?
-
-Son las **APIs nativas de .NET** para telemetría, parte del BCL (Base Class Library):
-
-- ✅ **No requieren dependencias externas** (parte del runtime)
-- ✅ **Performance optimizado** (implementación nativa en .NET)
-- ✅ **Integración automática con OpenTelemetry** (conversión a OTLP spans/metrics)
-- ✅ **W3C Trace Context standard** (propagación automática de `traceparent`/`tracestate`)
-- ✅ **Recomendado por Microsoft** como approach oficial para .NET
-
-**Alternativas descartadas**:
-- OpenTelemetry SDK directo (`Tracer.StartActiveSpan`) → Más verboso, `ActivitySource` es la abstracción preferida en .NET
-- Logging con correlation IDs manual → Reinventar la rueda, sin jerarquía de spans
-- SDKs vendor-specific (Application Insights SDK) → Vendor lock-in, no portable
-
-### Patrón: Telemetría en Building Blocks
-
-**Decisión clave**: Colocar telemetría en los **building blocks reutilizables** (Core.Application, Core.EventBusRabbitMQ) en lugar de en cada microservicio.
-
-**Ventajas**:
-- ✅ **Reutilización automática**: Identity.API, futuros microservicios heredan telemetría sin configuración
-- ✅ **Consistencia**: Mismas métricas y traces en toda la solución
-- ✅ **Single Responsibility**: El building block que ejecuta la lógica es quien la observa
-- ✅ **DRY (Don't Repeat Yourself)**: Un solo lugar para mantener
-
-**Ejemplo**: `RabbitMQEventBus.PublishAsync()` registra métricas porque:
-- Es el que REALMENTE publica el mensaje
-- Se puede llamar directamente sin `AccountIntegrationEventService`
-- Todos los microservicios que usen RabbitMQEventBus obtienen telemetría gratis
+- Distributed tracing with a custom `ActivitySource` for behaviors, transactions and events
+- Custom metrics with a `Meter` (counters, histograms) for commands, validation and events
+- Instrumentation of domain events and of integration events over RabbitMQ
+- Trace context propagation through messaging (end-to-end distributed tracing)
+- Support for several backends (Azure Monitor, Grafana, Elastic, Jaeger, etc.) without code changes
 
 ---
 
-## 📦 Estructura Implementada
+## 🏗️ Architectural Decisions
+
+### Why OpenTelemetry?
+
+OpenTelemetry is the **open standard** for observability, backed by the CNCF (Cloud Native Computing Foundation). Advantages:
+
+- **Vendor-agnostic**: works with Azure Monitor, Grafana, Datadog, New Relic, Elastic, etc.
+- **A single SDK**: one API for traces, metrics and logs
+- **Standard protocol (OTLP)**: switch backends without touching code
+- **Mature ecosystem**: automatic instrumentation for popular frameworks
+- **Future-proof**: adopted as the standard by Microsoft, Google and AWS
+
+### Why `System.Diagnostics.ActivitySource` and `System.Diagnostics.Metrics.Meter`?
+
+They are the **native .NET telemetry APIs**, part of the BCL (Base Class Library):
+
+- ✅ **No external dependencies** (part of the runtime)
+- ✅ **Optimized performance** (native .NET implementation)
+- ✅ **Automatic integration with OpenTelemetry** (converted to OTLP spans/metrics)
+- ✅ **W3C Trace Context standard** (`traceparent`/`tracestate`)
+- ✅ **Recommended by Microsoft** as the official approach for .NET
+
+**Discarded alternatives**:
+- The OpenTelemetry SDK directly (`Tracer.StartActiveSpan`) → more verbose; `ActivitySource` is the preferred abstraction in .NET
+- Manual logging with correlation IDs → reinventing the wheel, with no span hierarchy
+- Vendor-specific SDKs (Application Insights SDK) → vendor lock-in, not portable
+
+### Pattern: telemetry in the building blocks
+
+**Key decision**: put telemetry in the **reusable building blocks** (Core.Application, Core.EventBusRabbitMQ) instead of in each microservice.
+
+**Advantages**:
+- ✅ **Automatic reuse**: Identity.API and future microservices inherit the telemetry with no configuration
+- ✅ **Consistency**: the same metrics and traces across the solution
+- ✅ **Single responsibility**: the building block that runs the logic is the one that observes it
+- ✅ **DRY (Don't Repeat Yourself)**: one place to maintain
+
+**Example**: `RabbitMQEventBus.PublishAsync()` records metrics because:
+- It is the component that ACTUALLY publishes the message
+- It can be called directly, without `AccountIntegrationEventService`
+- Every microservice that uses `RabbitMQEventBus` gets the telemetry for free
+
+---
+
+## 📦 Implemented Structure
 
 ```
 src/
-├── uSLearn.Core.Application/
+├── Core.Application/
 │   ├── Telemetry/
-│   │   └── ApplicationDiagnostics.cs ← NUEVO (ActivitySource, Meter, métricas)
+│   │   └── ApplicationDiagnostics.cs ← NEW (ActivitySource, Meter, metrics)
 │   └── Behaviors/
-│       ├── LoggingBehavior.cs (actualizado con telemetría)
-│       ├── ValidationBehavior.cs (actualizado con telemetría)
-│       └── (TransactionBehavior en Accounts.API actualizado)
+│       ├── LoggingBehavior.cs (telemetry added)
+│       └── ValidationBehavior.cs (telemetry added)
 │
-├── uSLearn.Core.EventBusRabbitMQ/
-│   ├── RabbitMQEventBus.cs (actualizado con telemetría Producer/Consumer)
-│   └── Core.EventBusRabbitMQ.csproj (referencia a Core.Application)
+├── Core.EventBusRabbitMQ/
+│   ├── RabbitMQEventBus.cs (producer/consumer telemetry and trace context propagation)
+│   └── Core.EventBusRabbitMQ.csproj (references Core.Application)
 │
 ├── uSLearn.Accounts.API/
 │   ├── Application/
 │   │   └── Behaviors/
-│   │       └── TransactionBehavior.cs (actualizado con telemetría)
+│   │       └── TransactionBehavior.cs (telemetry added)
 │   └── Infrastructure/
 │       └── Extensions/
-│           └── MediatorExtension.cs (actualizado - métricas domain events)
+│           └── MediatorExtension.cs (updated - domain event metrics)
 │
 └── uSLearn.ServiceDefaults/
-    └── Extensions.cs (actualizado - registro de ActivitySource y Meter personalizados)
+    └── Extensions.cs (updated - registers the custom ActivitySource and Meter)
 ```
 
 ---
 
-## 🔧 Componentes Implementados
+## 🔧 Implemented Components
 
-### 1. `ApplicationDiagnostics` (Central Telemetry Hub)
+### 1. `ApplicationDiagnostics` (central telemetry hub)
 
-**Ubicación**: `uSLearn.Core.Application/Telemetry/ApplicationDiagnostics.cs`
+**Location**: `Core.Application/Telemetry/ApplicationDiagnostics.cs`
 
-**Propósito**: Punto único de definición de telemetría personalizada para toda la aplicación.
+**Purpose**: the single place where the application's custom telemetry is defined.
 
-**Componentes**:
+**Components**:
 
 ```csharp
 public static class ApplicationDiagnostics
@@ -102,55 +101,55 @@ public static class ApplicationDiagnostics
     public const string SourceName = "uSLearn.Core.Application";
     public const string Version = "1.0.0";
 
-    // ActivitySource para distributed tracing
+    // ActivitySource for distributed tracing
     public static readonly ActivitySource ActivitySource = new(SourceName, Version);
 
-    // Meter para métricas personalizadas
+    // Meter for custom metrics
     public static readonly Meter Meter = new(SourceName, Version);
 
-    // === Counters (contadores acumulativos) ===
+    // === Counters (cumulative) ===
     
-    // Total de comandos/queries procesados (tags: command_type, success)
+    // Total commands/queries processed (tags: command_type, success)
     public static readonly Counter<long> CommandsProcessed;
     
-    // Total de validaciones fallidas (tags: command_type, error_count)
+    // Total failed validations (tags: command_type, error_count)
     public static readonly Counter<long> ValidationFailures;
     
-    // Total de domain events publicados (tags: event_type)
+    // Total domain events published (tags: event_type)
     public static readonly Counter<long> DomainEventsPublished;
     
-    // Total de integration events publicados/recibidos (tags: event_type, success)
+    // Total integration events published/received (tags: event_type, success)
     public static readonly Counter<long> IntegrationEventsPublished;
     public static readonly Counter<long> IntegrationEventsReceived;
 
-    // === Histograms (distribuciones estadísticas) ===
+    // === Histograms (statistical distributions) ===
     
-    // Duración de comandos en ms (tags: command_type, success) - para p50, p95, p99
+    // Command duration in ms (tags: command_type, success) - for p50, p95, p99
     public static readonly Histogram<double> CommandDuration;
     
-    // Duración de validaciones en ms (tags: command_type, validator_count)
+    // Validation duration in ms (tags: command_type, validator_count)
     public static readonly Histogram<double> ValidationDuration;
     
-    // Duración de transacciones DB en ms (tags: command_type, success)
+    // DB transaction duration in ms (tags: command_type, success)
     public static readonly Histogram<double> TransactionDuration;
     
-    // Número de errores de validación por request (tags: command_type)
+    // Number of validation errors per request (tags: command_type)
     public static readonly Histogram<int> ValidationErrorCount;
 }
 ```
 
-**Características**:
-- Nombre consistente: `"uSLearn.Core.Application"` (usado en ActivitySource y Meter)
-- Métricas semánticas siguiendo OpenTelemetry Semantic Conventions
-- Unidades explícitas: `{command}`, `{event}`, `ms`, `{error}`
+**Characteristics**:
+- Consistent name: `"uSLearn.Core.Application"` (used by both the ActivitySource and the Meter)
+- Semantic metrics following the OpenTelemetry semantic conventions
+- Explicit units: `{command}`, `{event}`, `ms`, `{error}`
 
 ---
 
-### 2. `LoggingBehavior<TRequest, TResponse>` (Instrumentado)
+### 2. `LoggingBehavior<TRequest, TResponse>` (instrumented)
 
-**Ubicación**: `uSLearn.Core.Application/Behaviors/LoggingBehavior.cs`
+**Location**: `Core.Application/Behaviors/LoggingBehavior.cs`
 
-**Telemetría añadida**:
+**Added telemetry**:
 
 ```csharp
 public async Task<TResponse> Handle(...)
@@ -174,7 +173,7 @@ public async Task<TResponse> Handle(...)
         stopwatch.Stop();
         var elapsedMs = stopwatch.ElapsedMilliseconds;
 
-        // ✅ Métricas de éxito
+        // ✅ Success metrics
         ApplicationDiagnostics.CommandsProcessed.Add(1, 
             new("command_type", commandName),
             new("success", "true"));
@@ -191,7 +190,7 @@ public async Task<TResponse> Handle(...)
     }
     catch (Exception ex)
     {
-        // ✅ Métricas de fallo
+        // ✅ Failure metrics
         ApplicationDiagnostics.CommandsProcessed.Add(1, new("command_type", commandName), new("success", "false"));
         ApplicationDiagnostics.CommandDuration.Record(elapsedMs, new("command_type", commandName), new("success", "false"));
 
@@ -203,22 +202,22 @@ public async Task<TResponse> Handle(...)
 }
 ```
 
-**Tags de Activity**:
-- `command.name`: Nombre del comando (e.g., `"CreateOrganizationCommand"`)
-- `request.id`: ID único del request (idempotencia)
-- `correlation.id`: ID de correlación (distributed tracing)
+**Activity tags**:
+- `command.name`: command name (e.g. `"CreateOrganizationCommand"`)
+- `request.id`: unique request ID (idempotency)
+- `correlation.id`: correlation ID (distributed tracing)
 - `command.success`: `true`/`false`
-- `command.duration_ms`: Duración en milisegundos
-- `command.slow`: `true` si excede threshold (500ms)
-- `error.type`: Tipo de excepción si falla
+- `command.duration_ms`: duration in milliseconds
+- `command.slow`: `true` if it exceeds the threshold (500ms)
+- `error.type`: exception type on failure
 
 ---
 
-### 3. `ValidationBehavior<TRequest, TResponse>` (Instrumentado)
+### 3. `ValidationBehavior<TRequest, TResponse>` (instrumented)
 
-**Ubicación**: `uSLearn.Core.Application/Behaviors/ValidationBehavior.cs`
+**Location**: `Core.Application/Behaviors/ValidationBehavior.cs`
 
-**Telemetría añadida**:
+**Added telemetry**:
 
 ```csharp
 public async Task<TResponse> Handle(...)
@@ -229,7 +228,7 @@ public async Task<TResponse> Handle(...)
     var commandName = typeof(TRequest).Name;
     var validatorCount = _validators.Count();
 
-    // ✅ Activity de validación
+    // ✅ Validation activity
     using var activity = ApplicationDiagnostics.ActivitySource.StartActivity(
         name: $"Validation {commandName}",
         kind: ActivityKind.Internal);
@@ -243,7 +242,7 @@ public async Task<TResponse> Handle(...)
 
     var elapsedMs = stopwatch.Elapsed.TotalMilliseconds;
 
-    // ✅ Métrica de duración de validación
+    // ✅ Validation duration metric
     ApplicationDiagnostics.ValidationDuration.Record(elapsedMs,
         new("command_type", commandName),
         new("validator_count", validatorCount));
@@ -252,7 +251,7 @@ public async Task<TResponse> Handle(...)
     {
         var errorCount = failures.Count;
 
-        // ✅ Métricas de fallo
+        // ✅ Failure metrics
         ApplicationDiagnostics.ValidationFailures.Add(1,
             new("command_type", commandName),
             new("error_count", errorCount));
@@ -264,7 +263,7 @@ public async Task<TResponse> Handle(...)
         activity?.SetTag("validation.error_count", errorCount);
         activity?.SetStatus(ActivityStatusCode.Error, "Validation failed");
         
-        // ✅ Event con detalles de errores
+        // ✅ Event with the error details
         activity?.AddEvent(new ActivityEvent("ValidationFailed", 
             tags: new ActivityTagsCollection {
                 { "errors", string.Join("; ", failures.Select(f => $"{f.PropertyName}: {f.ErrorMessage}")) }
@@ -278,26 +277,27 @@ public async Task<TResponse> Handle(...)
 }
 ```
 
-**Características**:
-- Activity anidada dentro del Command Activity (jerarquía visible en traces)
-- Histograma de duración para análisis de performance
-- Counter de failures para alerting
-- ActivityEvent con detalles de errores (evita pollution de tags)
+**Characteristics**:
+- Activity nested inside the command activity (hierarchy visible in traces)
+- No activity when the request has no validators (e.g. the `IdentifiedCommand` wrapper)
+- Duration histogram for performance analysis
+- Failure counter for alerting
+- `ActivityEvent` with the error details (avoids polluting tags)
 
 ---
 
-### 4. `TransactionBehavior<TRequest, TResponse>` (Instrumentado)
+### 4. `TransactionBehavior<TRequest, TResponse>` (instrumented)
 
-**Ubicación**: `uSLearn.Accounts.API/Application/Behaviors/TransactionBehavior.cs`
+**Location**: `uSLearn.Accounts.API/Application/Behaviors/TransactionBehavior.cs`
 
-**Telemetría añadida**:
+**Added telemetry** (simplified; the real behavior also resets the transaction and the `ChangeTracker` between retries, and records the attempt number in the `transaction.attempt` tag):
 
 ```csharp
 public async Task<TResponse> Handle(...)
 {
     var typeName = request.GetGenericTypeName();
 
-    // ✅ Activity de transacción
+    // ✅ Transaction activity
     using var activity = ApplicationDiagnostics.ActivitySource.StartActivity(
         name: $"Transaction {typeName}",
         kind: ActivityKind.Internal);
@@ -321,13 +321,15 @@ public async Task<TResponse> Handle(...)
 
             response = await next(cancellationToken);
             await _dbContext.CommitTransactionAsync(transaction);
-            await _accountIntegrationEventService.PublishEventsThroughEventBusAsync(transaction.TransactionId);
         });
+
+        // Publish outside the execution strategy: a transient failure here must not re-run the committed command
+        await _accountIntegrationEventService.PublishEventsThroughEventBusAsync(transactionId);
 
         stopwatch.Stop();
         var elapsedMs = stopwatch.Elapsed.TotalMilliseconds;
 
-        // ✅ Métrica de duración de transacción
+        // ✅ Transaction duration metric
         ApplicationDiagnostics.TransactionDuration.Record(elapsedMs,
             new("command_type", typeName),
             new("success", "true"));
@@ -339,7 +341,7 @@ public async Task<TResponse> Handle(...)
     }
     catch (Exception ex)
     {
-        // ✅ Métrica de fallo
+        // ✅ Failure metric
         ApplicationDiagnostics.TransactionDuration.Record(0,
             new("command_type", typeName),
             new("success", "false"));
@@ -350,37 +352,36 @@ public async Task<TResponse> Handle(...)
 }
 ```
 
-**Tags específicos de transacciones**:
-- `transaction.id`: GUID de la transacción DB
-- `transaction.nested`: `true` si ya hay transacción activa
-- `transaction.duration_ms`: Duración total (incluyendo publicación de eventos)
+**Transaction-specific tags**:
+- `transaction.id`: GUID of the DB transaction
+- `transaction.attempt`: attempt number within the execution strategy
+- `transaction.nested`: `true` if a transaction was already active
+- `transaction.duration_ms`: total duration (including event publishing)
 
 ---
 
-### 5. `RabbitMQEventBus` (Instrumentado - Building Block) ⭐
+### 5. `RabbitMQEventBus` (instrumented building block) ⭐
 
-**Ubicación**: `uSLearn.Core.EventBusRabbitMQ/RabbitMQEventBus.cs`
+**Location**: `Core.EventBusRabbitMQ/RabbitMQEventBus.cs`
 
-**Mejora clave**: Telemetría movida de `AccountIntegrationEventService` al building block para **cobertura total** (todas las publicaciones se monitorizan).
+**Key improvement**: telemetry lives in the building block rather than in `AccountIntegrationEventService`, so **every** publish is monitored.
 
-#### PublishAsync (Producer)
+#### PublishAsync (producer)
 
 ```csharp
 public async Task PublishAsync(IntegrationEvent @event)
 {
     var routingKey = @event.GetType().Name;
 
-    // ✅ Activity Producer (distributed tracing)
+    // ✅ Producer activity (distributed tracing)
     using var activity = ApplicationDiagnostics.ActivitySource.StartActivity(
         name: $"Publish {routingKey}",
-        kind: ActivityKind.Producer); // ← Producer para mensajería
+        kind: ActivityKind.Producer); // ← Producer for messaging
 
     activity?.SetTag("messaging.system", "rabbitmq");
     activity?.SetTag("messaging.destination", ExchangeName);
-    activity?.SetTag("messaging.destination_kind", "topic");
     activity?.SetTag("messaging.rabbitmq.routing_key", routingKey);
     activity?.SetTag("event.id", @event.Id);
-    activity?.SetTag("event.type", routingKey);
 
     try
     {
@@ -388,14 +389,15 @@ public async Task PublishAsync(IntegrationEvent @event)
         await channel.ExchangeDeclareAsync(exchange: ExchangeName, type: "direct");
 
         var body = SerializeMessage(@event);
-        var properties = new BasicProperties { DeliveryMode = DeliveryModes.Persistent };
 
-        // ✅ Inyección de trace context en headers (W3C traceparent/tracestate)
-        InjectTraceContext(activity ?? Activity.Current, properties);
-
-        // ExecuteAsync (no Execute) para que también se reintenten los fallos asíncronos
+        // ExecuteAsync (not Execute) so that asynchronous publish failures are retried too
         await _pipeline.ExecuteAsync(async _ =>
         {
+            var properties = new BasicProperties { DeliveryMode = DeliveryModes.Persistent };
+
+            // ✅ Inject the trace context into the headers (W3C traceparent/tracestate)
+            InjectTraceContext(activity ?? Activity.Current, properties);
+
             await channel.BasicPublishAsync(
                 exchange: ExchangeName,
                 routingKey: routingKey,
@@ -404,7 +406,7 @@ public async Task PublishAsync(IntegrationEvent @event)
                 body: body);
         });
 
-        // ✅ Métrica de publicación exitosa
+        // ✅ Successful publish metric
         ApplicationDiagnostics.IntegrationEventsPublished.Add(1,
             new("event_type", routingKey),
             new("success", "true"));
@@ -413,7 +415,7 @@ public async Task PublishAsync(IntegrationEvent @event)
     }
     catch (Exception ex)
     {
-        // ✅ Métrica de publicación fallida
+        // ✅ Failed publish metric
         ApplicationDiagnostics.IntegrationEventsPublished.Add(1,
             new("event_type", routingKey),
             new("success", "false"));
@@ -424,9 +426,9 @@ public async Task PublishAsync(IntegrationEvent @event)
 }
 ```
 
-**Características clave**:
-- `ActivityKind.Producer`: Identifica como productor de mensajes
-- **Inyección de trace context** en headers RabbitMQ (`traceparent`, `tracestate`) con `DistributedContextPropagator` de .NET, sin dependencias adicionales:
+**Key characteristics**:
+- `ActivityKind.Producer`: identifies the activity as a message producer
+- **Trace context injection** into the RabbitMQ headers (`traceparent`, `tracestate`) with .NET's `DistributedContextPropagator`, no extra dependencies:
 
 ```csharp
 internal static void InjectTraceContext(Activity? activity, BasicProperties properties)
@@ -439,19 +441,19 @@ internal static void InjectTraceContext(Activity? activity, BasicProperties prop
     });
 }
 ```
-- Tags semánticos de mensajería (OpenTelemetry Messaging Semantic Conventions)
-- Métricas de success/failure para SLOs
+- Semantic messaging tags (OpenTelemetry messaging semantic conventions)
+- Success/failure metrics for SLOs
 
-#### ProcessEvent (Consumer)
+#### ProcessEvent (consumer)
 
 ```csharp
 private async Task ProcessEvent(string eventName, string message, IReadOnlyBasicProperties properties)
 {
-    // ✅ Activity Consumer, hija de la traza del productor (contexto leído de los headers)
+    // ✅ Consumer activity, child of the producer's trace (context read from the headers)
     using var activity = ApplicationDiagnostics.ActivitySource.StartActivity(
         $"Process {eventName}",
         ActivityKind.Consumer,
-        ExtractTraceContext(properties)); // ← RabbitMQ entrega los headers como byte[]
+        ExtractTraceContext(properties)); // ← RabbitMQ delivers header values as byte[]
 
     activity?.SetTag("messaging.system", "rabbitmq");
     activity?.SetTag("messaging.source", ExchangeName);
@@ -482,7 +484,7 @@ private async Task ProcessEvent(string eventName, string message, IReadOnlyBasic
 
         activity?.SetTag("event.handler_count", handlerCount);
 
-        // ✅ Métrica de recepción exitosa
+        // ✅ Successful receive metric
         ApplicationDiagnostics.IntegrationEventsReceived.Add(1,
             new("event_type", eventName),
             new("success", "true"));
@@ -491,7 +493,7 @@ private async Task ProcessEvent(string eventName, string message, IReadOnlyBasic
     }
     catch (Exception ex)
     {
-        // ✅ Métrica de recepción fallida
+        // ✅ Failed receive metric
         ApplicationDiagnostics.IntegrationEventsReceived.Add(1,
             new("event_type", eventName),
             new("success", "false"));
@@ -502,18 +504,18 @@ private async Task ProcessEvent(string eventName, string message, IReadOnlyBasic
 }
 ```
 
-**Ventajas del distributed tracing en mensajería**:
-- Trace completo: `HTTP Request → Command → Transaction → Publish Event → Consume Event → Handler`
-- El trace ID se propaga automáticamente via headers
-- Visualización end-to-end en Aspire Dashboard / Grafana / Azure Monitor
+**Benefits of distributed tracing over messaging**:
+- Full trace: `HTTP request → command → transaction → publish event → consume event → handler`
+- The trace ID travels in the message headers
+- End-to-end view in the Aspire dashboard / Grafana / Azure Monitor
 
 ---
 
-### 6. `MediatorExtension.DispatchDomainEventsAsync` (Instrumentado)
+### 6. `MediatorExtension.DispatchDomainEventsAsync` (instrumented)
 
-**Ubicación**: `uSLearn.Accounts.API/Infrastructure/Extensions/MediatorExtension.cs`
+**Location**: `uSLearn.Accounts.API/Infrastructure/Extensions/MediatorExtension.cs`
 
-**Telemetría añadida**:
+**Added telemetry**:
 
 ```csharp
 public static async Task DispatchDomainEventsAsync(this IMediator mediator, AccountContext ctx)
@@ -529,7 +531,7 @@ public static async Task DispatchDomainEventsAsync(this IMediator mediator, Acco
     {
         var eventType = domainEvent.GetType().Name;
 
-        // ✅ Métrica de domain event publicado
+        // ✅ Domain event published metric
         ApplicationDiagnostics.DomainEventsPublished.Add(1,
             new("event_type", eventType));
 
@@ -538,15 +540,15 @@ public static async Task DispatchDomainEventsAsync(this IMediator mediator, Acco
 }
 ```
 
-**Nota**: Los domain events se publican internamente (no cruzan boundaries), por lo que solo registramos métricas (no activities).
+**Note**: domain events stay in-process (they don't cross boundaries), so only metrics are recorded (no activities).
 
 ---
 
-### 7. Registro en ServiceDefaults
+### 7. Registration in ServiceDefaults
 
-**Ubicación**: `uSLearn.ServiceDefaults/Extensions.cs`
+**Location**: `uSLearn.ServiceDefaults/Extensions.cs`
 
-**Configuración de OpenTelemetry**:
+**OpenTelemetry configuration**:
 
 ```csharp
 public static TBuilder ConfigureOpenTelemetry<TBuilder>(this TBuilder builder) 
@@ -564,12 +566,12 @@ public static TBuilder ConfigureOpenTelemetry<TBuilder>(this TBuilder builder)
             metrics.AddAspNetCoreInstrumentation()     // ← HTTP server metrics
                 .AddHttpClientInstrumentation()        // ← HTTP client metrics
                 .AddRuntimeInstrumentation()           // ← .NET runtime metrics (GC, threads, etc.)
-                .AddMeter("uSLearn.Core.Application"); // ← NUESTRAS métricas personalizadas ✅
+                .AddMeter("uSLearn.Core.Application"); // ← OUR custom metrics ✅
         })
         .WithTracing(tracing =>
         {
             tracing.AddSource(builder.Environment.ApplicationName) // ← Service-specific traces
-                .AddSource("uSLearn.Core.Application")             // ← NUESTROS traces personalizados ✅
+                .AddSource("uSLearn.Core.Application")             // ← OUR custom traces ✅
                 .AddAspNetCoreInstrumentation(tracing =>
                     tracing.Filter = context =>
                         !context.Request.Path.StartsWithSegments(HealthEndpointPath)
@@ -590,10 +592,10 @@ private static TBuilder AddOpenTelemetryExporters<TBuilder>(this TBuilder builde
 
     if (useOtlpExporter)
     {
-        builder.Services.AddOpenTelemetry().UseOtlpExporter(); // ← OTLP para logs, metrics, traces ✅
+        builder.Services.AddOpenTelemetry().UseOtlpExporter(); // ← OTLP for logs, metrics, traces ✅
     }
 
-    // Opcional: Azure Monitor para features adicionales (Live Metrics, Smart Detection)
+    // Optional: Azure Monitor for extra features (Live Metrics, Smart Detection)
     // if (!string.IsNullOrEmpty(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
     // {
     //     builder.Services.AddOpenTelemetry().UseAzureMonitor();
@@ -603,97 +605,70 @@ private static TBuilder AddOpenTelemetryExporters<TBuilder>(this TBuilder builde
 }
 ```
 
-**Configuración clave**:
-- `.AddMeter("uSLearn.Core.Application")`: Exporta NUESTRAS métricas personalizadas
-- `.AddSource("uSLearn.Core.Application")`: Exporta NUESTROS traces personalizados
-- `.UseOtlpExporter()`: Exporta todo (logs, metrics, traces) a cualquier backend compatible con OTLP
+**Key configuration**:
+- `.AddMeter("uSLearn.Core.Application")`: exports OUR custom metrics
+- `.AddSource("uSLearn.Core.Application")`: exports OUR custom traces
+- `.UseOtlpExporter()`: exports everything (logs, metrics, traces) to any OTLP-compatible backend
 
 ---
 
-## 📊 Métricas y Traces Disponibles
+## 📊 Available Metrics and Traces
 
-### **Métricas (Metrics)**
+### **Metrics**
 
-| Nombre | Tipo | Descripción | Tags |
+| Name | Type | Description | Tags |
 |--------|------|-------------|------|
-| `application.commands.processed` | Counter | Total de comandos/queries procesados | `command_type`, `success` |
-| `application.commands.duration` | Histogram | Duración de comandos en ms (p50, p95, p99) | `command_type`, `success` |
-| `application.validation.failures` | Counter | Total de validaciones fallidas | `command_type`, `error_count` |
-| `application.validation.duration` | Histogram | Duración de validaciones en ms | `command_type`, `validator_count` |
-| `application.validation.error_count` | Histogram | Errores de validación por request | `command_type` |
-| `application.transactions.duration` | Histogram | Duración de transacciones DB en ms | `command_type`, `success` |
-| `application.domain_events.published` | Counter | Total de domain events publicados | `event_type` |
-| `application.integration_events.published` | Counter | Total de integration events publicados | `event_type`, `success` |
-| `application.integration_events.received` | Counter | Total de integration events recibidos | `event_type`, `success` |
+| `application.commands.processed` | Counter | Total commands/queries processed | `command_type`, `success` |
+| `application.commands.duration` | Histogram | Command duration in ms (p50, p95, p99) | `command_type`, `success` |
+| `application.validation.failures` | Counter | Total failed validations | `command_type`, `error_count` |
+| `application.validation.duration` | Histogram | Validation duration in ms | `command_type`, `validator_count` |
+| `application.validation.error_count` | Histogram | Validation errors per request | `command_type` |
+| `application.transactions.duration` | Histogram | DB transaction duration in ms | `command_type`, `success` |
+| `application.domain_events.published` | Counter | Total domain events published | `event_type` |
+| `application.integration_events.published` | Counter | Total integration events published | `event_type`, `success` |
+| `application.integration_events.received` | Counter | Total integration events received | `event_type`, `success` |
 
-**Métricas automáticas** (de instrumentación built-in):
+**Automatic metrics** (built-in instrumentation):
 - `http.server.request.duration` (ASP.NET Core)
 - `http.client.request.duration` (HttpClient)
-- `process.runtime.dotnet.gc.*` (GC stats)
-- `process.runtime.dotnet.threads.count` (Thread pool)
+- .NET runtime metrics (GC, thread pool, etc.)
 
 ---
 
-### **Traces (Distributed Tracing)**
+### **Traces (distributed tracing)**
 
-Ejemplo de trace completo para `PUT /api/accounts`:
+Expected structure of the trace for `PUT /api/accounts`. The endpoint sends an `IdentifiedCommand` that wraps the business command, so the behaviors appear twice:
 
 ```
-Trace ID: 4bf92f3577b3f4f4ae1a0bf7a0d8c7
-  │
-  ├─ [Server] HTTP PUT /api/accounts (350ms) ← ASP.NET Core (auto)
-  │   │
-  │   ├─ [Internal] Command IdentifiedCommand<CreateOrganizationCommand,Boolean> (320ms) ← LoggingBehavior
-  │   │   │  Tags: command.name, request.id, correlation.id, command.success, command.duration_ms
-  │   │   │
-  │   │   ├─ [Internal] Validation CreateOrganizationCommand (5ms) ← ValidationBehavior
-  │   │   │      Tags: validation.command, validation.validator_count, validation.success
-  │   │   │
-  │   │   └─ [Internal] Transaction IdentifiedCommand<...> (310ms) ← TransactionBehavior
-  │   │       │  Tags: transaction.id, transaction.success, transaction.duration_ms
-  │   │       │
-  │   │       ├─ [Client] SQL INSERT INTO Organizations (15ms) ← EF Core (auto)
-  │   │       │
-  │   │       └─ [Producer] Publish OrganizationCreatedIntegrationEvent (25ms) ← RabbitMQEventBus
-  │   │              Tags: messaging.system=rabbitmq, event.type, event.id
-  │   │              Headers: traceparent, tracestate ← W3C Trace Context
-  │
-  └─ [Consumer] Process OrganizationCreatedIntegrationEvent (30ms) ← RabbitMQEventBus (otro proceso)
-      │  Tags: messaging.system=rabbitmq, event.type, event.handler_count
-      │  Parent: Trace ID propagado via headers
-      │
-      └─ [Internal] EventHandler Logic (25ms)
+HTTP PUT /api/accounts                                       ← ASP.NET Core (auto)        [apiservice]
+└─ Command IdentifiedCommand<CreateOrganizationCommand, ...>  ← LoggingBehavior
+   └─ Transaction IdentifiedCommand<...>                      ← TransactionBehavior (opens the transaction)
+      ├─ Command CreateOrganizationCommand                     ← LoggingBehavior
+      │  ├─ Validation CreateOrganizationCommand               ← ValidationBehavior
+      │  └─ Transaction CreateOrganizationCommand              ← TransactionBehavior (transaction.nested = true)
+      └─ Publish OrganizationCreatedIntegrationEvent           ← RabbitMQEventBus (Producer)
+         │  Headers: traceparent, tracestate                   ← W3C Trace Context
+         └─ Process OrganizationCreatedIntegrationEvent        ← RabbitMQEventBus (Consumer)   [identity]
 ```
 
 **Characteristics**:
-- **Jerarquía automática**: Activities anidadas (parent-child relationships)
-- **Propagación de trace**: El mismo Trace ID atraviesa HTTP → Commands → RabbitMQ → Consumers
-- **ActivityKind apropiado**: Internal, Server, Client, Producer, Consumer
-- **Tags semánticos**: Siguiendo OpenTelemetry Semantic Conventions
+- **Automatic hierarchy**: nested activities (parent-child relationships)
+- **Trace propagation**: the same trace ID crosses HTTP → commands → RabbitMQ → consumers
+- **Appropriate ActivityKind**: Internal, Server, Producer, Consumer
+- **Semantic tags**: following the OpenTelemetry semantic conventions
+- **No SQL spans**: EF Core/SqlClient instrumentation isn't enabled (see optional improvements)
 
 ---
 
-## 🌐 Configuración para Diferentes Backends
+## 🌐 Configuration for Different Backends
 
-Tu configuración actual usa **OTLP (OpenTelemetry Protocol)**, un estándar abierto compatible con todos los backends principales. **No necesitas cambiar código** para cambiar de backend - solo configuración.
+The current setup uses **OTLP (OpenTelemetry Protocol)**, an open standard supported by all major backends. **Switching backends requires no code changes**, only configuration.
 
-### **Azure Monitor / Application Insights** (Recomendado para Azure)
+### **Azure Monitor / Application Insights**
 
-#### Opción 1: OTLP directo (funciona desde 2023)
+Use the Azure Monitor OpenTelemetry distro (or route OTLP through an OpenTelemetry Collector with the `azuremonitor` exporter, see the hybrid setup below).
 
-**Variables de entorno**:
-```sh
-OTEL_EXPORTER_OTLP_ENDPOINT=https://<region>.monitor.azure.com/v1/traces
-OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer <access-token>
-```
-
-**Tu código actual**: ✅ Ya funciona sin cambios.
-
----
-
-#### Opción 2: SDK nativo de Azure (features adicionales)
-
-**Descomentar en `Extensions.cs`**:
+**Uncomment in `Extensions.cs`**:
 ```csharp
 if (!string.IsNullOrEmpty(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
 {
@@ -702,83 +677,83 @@ if (!string.IsNullOrEmpty(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_
 }
 ```
 
-**En `appsettings.json` o Azure App Service Configuration**:
+**In `appsettings.json` or the Azure App Service configuration**:
 ```json
 {
   "APPLICATIONINSIGHTS_CONNECTION_STRING": "InstrumentationKey=xxx;IngestionEndpoint=https://..."
 }
 ```
 
-**Package necesario**:
+**Required package**:
 ```xml
-<PackageReference Include="Azure.Monitor.OpenTelemetry.AspNetCore" Version="1.3.0" />
+<PackageReference Include="Azure.Monitor.OpenTelemetry.AspNetCore" />
 ```
 
-**Features exclusivas**:
-- **Live Metrics**: Telemetría en tiempo real (latency, failures, requests/sec)
-- **Smart Detection**: Alertas automáticas de anomalías (picos de errores, degradación de performance)
-- **Application Map**: Topología visual de dependencias entre servicios
-- **KQL Queries**: Queries avanzadas en Log Analytics
+**Exclusive features**:
+- **Live Metrics**: real-time telemetry (latency, failures, requests/sec)
+- **Smart Detection**: automatic anomaly alerts (error spikes, performance degradation)
+- **Application Map**: visual topology of dependencies between services
+- **KQL queries**: advanced queries in Log Analytics
 
-**Cuándo usar**:
-- ✅ Production en Azure (integración nativa con Azure Portal)
-- ✅ Necesitas features avanzadas de Application Insights
-- ❌ Multi-cloud o quieres evitar vendor lock-in → Usa OTLP directo
+**When to use it**:
+- ✅ Production on Azure (native integration with the Azure portal)
+- ✅ You need the advanced Application Insights features
+- ❌ Multi-cloud, or you want to avoid vendor lock-in → use plain OTLP
 
 ---
 
-### **Grafana Cloud / Grafana Stack**
+### **Grafana Cloud / Grafana stack**
 
-**Variables de entorno**:
+**Environment variables**:
 ```sh
 OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-eu-west-0.grafana.net/otlp
 OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic <base64(instance_id:token)>
 ```
 
-**Tu código actual**: ✅ Ya funciona sin cambios.
+**Current code**: ✅ works without changes.
 
-**Mapeo automático**:
+**Automatic mapping**:
 - Traces → **Grafana Tempo**
-- Metrics → **Prometheus** (via Grafana Agent)
+- Metrics → **Prometheus / Mimir**
 - Logs → **Grafana Loki**
 
-**Obtener credenciales**:
+**Getting credentials**:
 1. Grafana Cloud → Stack → OTLP
-2. Copiar Instance ID y generar Access Token
-3. Base64 encode: `echo -n "instance_id:token" | base64`
+2. Copy the instance ID and generate an access token
+3. Base64-encode them: `echo -n "instance_id:token" | base64`
 
-**Dashboard recomendado**: [OpenTelemetry APM Dashboard](https://grafana.com/grafana/dashboards/19419)
+**Recommended dashboard**: [OpenTelemetry APM Dashboard](https://grafana.com/grafana/dashboards/19419)
 
 ---
 
 ### **Elastic Stack (Kibana + Elasticsearch)**
 
-**Variables de entorno**:
+**Environment variables**:
 ```sh
 OTEL_EXPORTER_OTLP_ENDPOINT=https://your-elastic-apm.elastic-cloud.com:443
 OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer <secret-token>
 ```
 
-**Tu código actual**: ✅ Ya funciona (Elastic APM soporta OTLP desde v8.0).
+**Current code**: ✅ works (Elastic APM supports OTLP since v8.0).
 
-**Resultado**:
-- Traces → **APM UI** en Kibana
-- Metrics → **Elasticsearch** (visualizables en Kibana dashboards)
-- Logs → **Elasticsearch** (buscables en Kibana Discover)
+**Result**:
+- Traces → **APM UI** in Kibana
+- Metrics → **Elasticsearch** (visualized in Kibana dashboards)
+- Logs → **Elasticsearch** (searchable in Kibana Discover)
 
-**Obtener token**:
+**Getting a token**:
 ```sh
-# En Elastic Cloud
+# In Elastic Cloud
 Observability → APM → Add APM integration → OTLP → Generate secret token
 ```
 
 ---
 
-### **Configuración Híbrida (Múltiples Backends)**
+### **Hybrid setup (several backends)**
 
-Si quieres enviar telemetría a **múltiples destinos simultáneamente** (e.g., Azure Monitor + Grafana):
+To send telemetry to **several destinations at once** (e.g. Azure Monitor + Grafana):
 
-#### Deploy OTLP Collector
+#### Deploy an OTLP Collector
 
 **Collector config** (`otel-collector-config.yaml`):
 ```yaml
@@ -829,7 +804,7 @@ service:
       exporters: [azuremonitor, otlp/grafana]
 ```
 
-**Deploy en Azure Container Apps**:
+**Deploy on Azure Container Apps**:
 ```sh
 az containerapp create \
   --name otel-collector \
@@ -843,53 +818,52 @@ az containerapp create \
     GRAFANA_TOKEN="<base64-token>"
 ```
 
-**Tu aplicación apunta al collector**:
+**Point the application at the collector**:
 ```sh
 OTEL_EXPORTER_OTLP_ENDPOINT=https://otel-collector.azurecontainerapps.io:4317
 ```
 
-**Ventajas**:
-- ✅ Enviar a múltiples backends sin cambios en la app
-- ✅ Sampling centralizado (reduce costos)
-- ✅ Transformaciones de datos (filtrado, enriquecimiento)
-- ✅ Cambiar backends sin redesplegar apps
+**Advantages**:
+- ✅ Send to several backends without changing the app
+- ✅ Centralized sampling (lower costs)
+- ✅ Data transformations (filtering, enrichment)
+- ✅ Switch backends without redeploying the apps
 
 ---
 
-## ✅ Verificación Práctica
+## ✅ Practical Verification
 
-### 1. **Ejecutar la aplicación**
+### 1. **Run the application**
 
 ```sh
 dotnet run --project src/uSLearn.AppHost
 ```
 
-Aspire Dashboard: `http://localhost:15888`
+The Aspire dashboard URL is printed in the console.
 
 ---
 
-### 2. **Generar actividad**
+### 2. **Generate activity**
 
-**Request inválido (validación fallida)**:
+**Invalid request (validation fails)**:
 ```sh
-curl -X PUT http://localhost:5001/api/accounts \
+curl -X PUT "https://localhost:7375/api/accounts?api-version=1.0" \
   -H "x-requestid: $(uuidgen)" \
   -H "Content-Type: application/json" \
   -d '{"name":"","legalName":"","taxIdNumber":"","country":"","zipCode":""}'
 ```
 
-**Request válido**:
+**Valid request**:
 ```sh
-curl -X PUT http://localhost:5001/api/accounts \
+curl -X PUT "https://localhost:7375/api/accounts?api-version=1.0" \
   -H "x-requestid: $(uuidgen)" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Acme Corp",
     "legalName": "Acme Corporation LLC",
     "taxIdNumber": "12-3456789",
-    "taxNumberType": "EIN",
+    "taxNumberType": "Ein",
     "country": "United States",
-    "countryCode": "US",
     "zipCode": "94105",
     "city": "San Francisco",
     "state": "CA",
@@ -900,85 +874,73 @@ curl -X PUT http://localhost:5001/api/accounts \
 
 ---
 
-### 3. **Verificar Traces en Aspire Dashboard**
+### 3. **Check the traces in the Aspire dashboard**
 
-**Navegación**: Dashboard → **Traces** → Filtrar por `uSLearn.Accounts.API`
+**Navigation**: dashboard → **Traces** → filter by `apiservice`
 
-**Trace esperado**:
-```
-└─ HTTP PUT /api/accounts (350ms)
-    ├─ Command IdentifiedCommand<CreateOrganizationCommand,Boolean> (320ms)
-    │   ├─ Validation CreateOrganizationCommand (5ms) ✅
-    │   └─ Transaction IdentifiedCommand<...> (310ms)
-    │       ├─ SQL INSERT INTO Organizations (15ms)
-    │       └─ Publish OrganizationCreatedIntegrationEvent (25ms) ✅
-    └─ Process OrganizationCreatedIntegrationEvent (30ms) ✅
-        └─ Handler Logic (25ms)
-```
-
-**Verificar**:
-- ✅ Activities anidadas correctamente
-- ✅ Tags visibles (`command.name`, `validation.success`, `messaging.system`, etc.)
-- ✅ Durations precisas
-- ✅ Trace ID propagado entre Producer → Consumer
+**Check**:
+- ✅ Activities nested as in the [expected structure](#traces-distributed-tracing)
+- ✅ Tags visible (`command.name`, `validation.success`, `messaging.system`, etc.)
+- ✅ Accurate durations
+- ✅ The same trace ID in the producer (`apiservice`) and the consumer (`identity`)
 
 ---
 
-### 4. **Verificar Métricas en Aspire Dashboard**
+### 4. **Check the metrics in the Aspire dashboard**
 
-**Navegación**: Dashboard → **Metrics** → Seleccionar `uSLearn.Accounts.API`
+**Navigation**: dashboard → **Metrics** → select `apiservice`
 
-**Métricas esperadas**:
+**Expected metrics**:
 
-| Métrica | Valor Esperado |
+| Metric | Expected value |
 |---------|----------------|
 | `application.commands.processed` (success=true) | 1+ |
-| `application.commands.duration` (p95) | < 500ms (ideal) |
-| `application.validation.duration` (p50) | < 10ms (ideal) |
-| `application.validation.failures` | 1+ (si enviaste request inválido) |
-| `application.transactions.duration` (p95) | < 300ms (depende de DB) |
-| `application.integration_events.published` | 1+ (si evento publicado) |
-| `application.integration_events.received` | 1+ (si evento consumido) |
+| `application.commands.duration` (p95) | < 500ms (ideally) |
+| `application.validation.duration` (p50) | < 10ms (ideally) |
+| `application.validation.failures` | 1+ (if you sent the invalid request) |
+| `application.transactions.duration` (p95) | < 300ms (depends on the DB) |
+| `application.integration_events.published` | 1+ (once an event is published) |
+| `application.integration_events.received` | 1+ (in `identity`, once the event is consumed) |
 
-**Verificar**:
-- ✅ Counters incrementan con cada request
-- ✅ Histograms muestran distribución (p50, p95, p99)
-- ✅ Tags permiten filtrar por `command_type`, `event_type`, `success`
-
----
-
-### 5. **Verificar Propagación de Trace Context (RabbitMQ)**
-
-**Herramienta**: Aspire Dashboard → **Traces**
-
-**Acción**: crear una organización (`PUT /api/accounts`) y abrir la traza de la petición.
-
-**Verificar**:
-- ✅ Una única traza contiene `PUT /api/accounts` (apiservice) → `Publish OrganizationCreatedIntegrationEvent` → `Process OrganizationCreatedIntegrationEvent` (identity)
-- ✅ El span `Process ...` es hijo del span `Publish ...`: el `traceparent` viajó en los headers del mensaje
-
-> El AppHost no activa el plugin de gestión de RabbitMQ; si se quiere inspeccionar los mensajes, añadir `.WithManagementPlugin()` a `AddRabbitMQ("eventbus")`.
+**Check**:
+- ✅ Counters increase with each request
+- ✅ Histograms show the distribution (p50, p95, p99)
+- ✅ Tags allow filtering by `command_type`, `event_type`, `success`
 
 ---
 
-## 🔄 Reutilización en Otros Microserviços
+### 5. **Check trace context propagation (RabbitMQ)**
 
-Para usar telemetría en `Identity.API` o futuros microservicios:
+**Tool**: Aspire dashboard → **Traces**
 
-### 1. **Ya funciona automáticamente** (si usa building blocks)
+**Action**: create an organization (`PUT /api/accounts`) and open the request's trace.
 
-Si Identity.API usa:
-- ✅ `LoggingBehavior`, `ValidationBehavior` → Telemetría automática
-- ✅ `RabbitMQEventBus` → Telemetría de eventos automática
-- ✅ `ServiceDefaults` → OpenTelemetry configurado
+**Check**:
+- ✅ A single trace contains `PUT /api/accounts` (apiservice) → `Publish OrganizationCreatedIntegrationEvent` → `Process OrganizationCreatedIntegrationEvent` (identity)
+- ✅ The `Process ...` span is a child of the `Publish ...` span: the `traceparent` travelled in the message headers
 
-**No necesitas hacer nada adicional.** 🎉
+> The AppHost doesn't enable the RabbitMQ management plugin; to inspect the messages, add `.WithManagementPlugin()` to `AddRabbitMQ("eventbus")`.
 
 ---
 
-### 2. **Para behaviors específicos del servicio**
+## 🔄 Reuse in Other Microservices
 
-Si Identity.API tiene un behavior custom (e.g., `AuthenticationBehavior`):
+To use telemetry in `Identity.API` or future microservices:
+
+### 1. **It already works** (when using the building blocks)
+
+If Identity.API uses:
+- ✅ `LoggingBehavior`, `ValidationBehavior` → automatic telemetry
+- ✅ `RabbitMQEventBus` → automatic event telemetry
+- ✅ `ServiceDefaults` → OpenTelemetry already configured
+
+**Nothing else to do.** 🎉
+
+---
+
+### 2. **Service-specific behaviors**
+
+If Identity.API has a custom behavior (e.g. a hypothetical `AuthenticationBehavior`):
 
 ```csharp
 public class AuthenticationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
@@ -987,16 +949,16 @@ public class AuthenticationBehavior<TRequest, TResponse> : IPipelineBehavior<TRe
     {
         var commandName = typeof(TRequest).Name;
 
-        // ✅ Usar ApplicationDiagnostics
+        // ✅ Use ApplicationDiagnostics
         using var activity = ApplicationDiagnostics.ActivitySource.StartActivity(
             name: $"Authentication {commandName}",
             kind: ActivityKind.Internal);
 
         activity?.SetTag("authentication.command", commandName);
 
-        // ... lógica de autenticación ...
+        // ... authentication logic ...
 
-        // ✅ Registrar métrica (opcional)
+        // ✅ Record a metric (optional)
         // ApplicationDiagnostics.Meter.CreateCounter<long>("identity.authentication.attempts")
         //     .Add(1, new("command_type", commandName), new("success", success));
 
@@ -1005,24 +967,24 @@ public class AuthenticationBehavior<TRequest, TResponse> : IPipelineBehavior<TRe
 }
 ```
 
-**No necesitas crear nuevo ActivitySource** - reusa `ApplicationDiagnostics`.
+**No need to create a new ActivitySource**: reuse `ApplicationDiagnostics`.
 
 ---
 
-### 3. **Para métricas específicas del dominio**
+### 3. **Domain-specific metrics**
 
-Si Identity.API necesita métricas específicas (e.g., intentos de login):
+If Identity.API needs specific metrics (e.g. login attempts):
 
-**Opción A: Añadir a `ApplicationDiagnostics.cs`** (si es común)
+**Option A: add them to `ApplicationDiagnostics.cs`** (if they are shared)
 ```csharp
-// En ApplicationDiagnostics.cs
+// In ApplicationDiagnostics.cs
 public static readonly Counter<long> LoginAttempts = Meter.CreateCounter<long>(
     name: "identity.login.attempts",
     unit: "{attempt}",
     description: "Total login attempts (tags: success, provider)");
 ```
 
-**Opción B: Crear `IdentityDiagnostics.cs`** (si es muy específico)
+**Option B: create `IdentityDiagnostics.cs`** (if they are very specific)
 ```csharp
 // Identity.API/Telemetry/IdentityDiagnostics.cs
 public static class IdentityDiagnostics
@@ -1034,78 +996,79 @@ public static class IdentityDiagnostics
         "identity.login.attempts", "{attempt}", "Login attempts");
 }
 
-// En ServiceDefaults/Extensions.cs
+// In ServiceDefaults/Extensions.cs
 .AddMeter("uSLearn.Core.Application")
-.AddMeter("uSLearn.Identity.API") // ← Añadir nuevo meter
+.AddMeter("uSLearn.Identity.API") // ← Add the new meter
 ```
 
-**Recomendación**: Usar Opción A para métricas comunes, Opción B para muy específicas del dominio.
+**Recommendation**: option A for shared metrics, option B for very domain-specific ones.
 
 ---
 
-## 🎯 Beneficios Logrados
+## 🎯 Benefits
 
-### 1. **Observabilidad Completa (Three Pillars)**
-- ✅ **Traces**: Distributed tracing end-to-end (HTTP → Commands → DB → Messaging)
-- ✅ **Metrics**: Counters y histograms para SLOs/SLAs
-- ✅ **Logs**: Structured logging con correlation IDs (ya implementado en Stage.04-1)
+### 1. **Full observability (three pillars)**
+- ✅ **Traces**: end-to-end distributed tracing (HTTP → commands → messaging)
+- ✅ **Metrics**: counters and histograms for SLOs/SLAs
+- ✅ **Logs**: structured logging with correlation IDs (from Stage.04-1)
 
-### 2. **Vendor-Agnostic (Portabilidad)**
-- ✅ Funciona con Azure Monitor, Grafana, Elastic, Datadog, Jaeger, New Relic, Honeycomb
-- ✅ Cambias de backend sin tocar código (solo configuración)
-- ✅ Puedes enviar a múltiples backends simultáneamente (via OTLP Collector)
+### 2. **Vendor-agnostic (portability)**
+- ✅ Works with Azure Monitor, Grafana, Elastic, Datadog, Jaeger, New Relic, Honeycomb
+- ✅ Switch backends without touching code (configuration only)
+- ✅ Send to several backends at once (through an OTLP Collector)
 
-### 3. **Performance Insights**
-- ✅ Detectar comandos lentos (threshold: 500ms)
-- ✅ Analizar distribución de latencias (p50, p95, p99)
-- ✅ Identificar cuellos de botella (validación vs transacción vs DB)
+### 3. **Performance insights**
+- ✅ Detect slow commands (threshold: 500ms)
+- ✅ Analyze the latency distribution (p50, p95, p99)
+- ✅ Find bottlenecks (validation vs transaction vs messaging)
 
-### 4. **Reliability Monitoring**
-- ✅ Métricas de success/failure para alerting
-- ✅ Tasa de validaciones fallidas
-- ✅ Tasa de eventos publicados/recibidos correctamente
+### 4. **Reliability monitoring**
+- ✅ Success/failure metrics for alerting
+- ✅ Failed validation rate
+- ✅ Rate of events published/received successfully
 
-### 5. **Troubleshooting Efectivo**
-- ✅ Trace completo de un request problemático (en segundos)
-- ✅ Jerarquía visual de operaciones (spans anidados)
-- ✅ Tags contextuales (command names, event types, error types)
-- ✅ Events en activities con detalles adicionales (e.g., errores de validación)
+### 5. **Effective troubleshooting**
+- ✅ The full trace of a problematic request in seconds
+- ✅ Visual hierarchy of operations (nested spans)
+- ✅ Contextual tags (command names, event types, error types)
+- ✅ Activity events with extra details (e.g. validation errors)
 
-### 6. **Distributed Tracing Real**
-- ✅ Propagación de trace context en RabbitMQ (W3C standard)
-- ✅ Mismo Trace ID a través de boundaries (HTTP → Messaging → Consumers)
-- ✅ Visualización de flujos asincrónicos end-to-end
+### 6. **Real distributed tracing**
+- ✅ Trace context propagated through RabbitMQ (W3C standard)
+- ✅ The same trace ID across boundaries (HTTP → messaging → consumers)
+- ✅ End-to-end view of asynchronous flows
 
 ---
 
-## 📚 Referencias
+## 📚 References
 
-- [OpenTelemetry .NET Documentation](https://opentelemetry.io/docs/languages/net/)
+- [OpenTelemetry .NET documentation](https://opentelemetry.io/docs/languages/net/)
 - [System.Diagnostics.ActivitySource](https://learn.microsoft.com/en-us/dotnet/core/diagnostics/distributed-tracing-instrumentation-walkthroughs)
 - [System.Diagnostics.Metrics](https://learn.microsoft.com/en-us/dotnet/core/diagnostics/metrics)
-- [OpenTelemetry Semantic Conventions](https://opentelemetry.io/docs/specs/semconv/)
+- [OpenTelemetry semantic conventions](https://opentelemetry.io/docs/specs/semconv/)
 - [W3C Trace Context](https://www.w3.org/TR/trace-context/)
-- [.NET Aspire Telemetry](https://learn.microsoft.com/en-us/dotnet/aspire/fundamentals/telemetry)
+- [.NET Aspire telemetry](https://learn.microsoft.com/en-us/dotnet/aspire/fundamentals/telemetry)
 - [Azure Monitor OpenTelemetry](https://learn.microsoft.com/en-us/azure/azure-monitor/app/opentelemetry-enable)
 
 ---
 
-## 🎯 Próximos Pasos
+## 🎯 Next Steps
 
-### Completados en Stage.04:
-- ✅ **Stage.04-1**: Logging enriquecido con structured logging y performance tracking
-- ✅ **Stage.04-2**: Validaciones con FluentValidation y manejo de excepciones
-- ✅ **Stage.04-3**: Telemetría con OpenTelemetry (traces, metrics, distributed tracing)
+### Completed in Stage.04:
+- ✅ **Stage.04-1**: Enriched logging with structured logging and performance tracking
+- ✅ **Stage.04-2**: Validation with FluentValidation and exception handling
+- ✅ **Stage.04-3**: Telemetry with OpenTelemetry (traces, metrics, distributed tracing)
 
-### **Stage.05**: Identity con Duende IdentityServer
-- Autenticación con OAuth 2.0 / OpenID Connect
-- Gestión de usuarios y roles
-- Token-based authentication para microservicios
-- Integration con Accounts.API
+### **Stage.05**: Identity with Duende IdentityServer
+- Authentication with OAuth 2.0 / OpenID Connect
+- User and role management
+- Token-based authentication for the microservices
+- Integration with Accounts.API
 
-### **Mejoras Opcionales de Telemetría**:
-- **Sampler configurables**: Reducir overhead en producción (e.g., 10% de traces)
-- **Custom exporters**: Enviar métricas específicas a Prometheus/StatsD
-- **Exemplars**: Vincular metrics → traces (clic en métrica → ver trace específico)
-- **Baggage**: Propagar metadata custom a través de distributed traces
-- **Resource attributes**: Añadir metadata de deployment (version, environment, region)
+### **Optional telemetry improvements**:
+- **SQL spans**: enable EF Core / SqlClient instrumentation to see database calls in the traces
+- **Configurable samplers**: reduce overhead in production (e.g. 10% of traces)
+- **Custom exporters**: send specific metrics to Prometheus/StatsD
+- **Exemplars**: link metrics → traces (click a metric → see a specific trace)
+- **Baggage**: propagate custom metadata through distributed traces
+- **Resource attributes**: add deployment metadata (version, environment, region)

@@ -1,33 +1,33 @@
-# Stage.04-1 - Logging Enriquecido con Core.Application
+# Stage.04-1 - Enriched Logging with Core.Application
 
-## 🎯 Objetivo de la Etapa
+## 🎯 Stage Goal
 
-Implementar un **LoggingBehavior reutilizable** en un building block compartido (`uSLearn.Core.Application`) que proporcione:
+Implement a **reusable LoggingBehavior** in a shared building block (`uSLearn.Core.Application`) that provides:
 
-- Performance tracking con medición de tiempos de ejecución
-- Structured logging con Request ID y Correlation ID
-- Detección automática de comandos lentos (>500ms)
-- Manejo robusto de excepciones con contexto completo
-- Reutilización en múltiples microservicios
+- Performance tracking by measuring execution times
+- Structured logging with request ID and correlation ID
+- Automatic detection of slow commands (>500ms)
+- Robust exception handling with full context
+- Reuse across several microservices
 
 ---
 
-## 🏗️ Decisiones Arquitectónicas
+## 🏗️ Architectural Decisions
 
-### ¿Por qué un Building Block Compartido?
+### Why a shared building block?
 
-El logging es una preocupación transversal (cross-cutting concern) común a todos los microservicios. Implementarlo en un building block garantiza:
+Logging is a cross-cutting concern shared by every microservice. Implementing it in a building block ensures:
 
-- **Reutilización**: Un solo código para Accounts, Identity y futuros servicios
-- **Consistencia**: Misma estructura de logs en toda la solución
-- **Mantenibilidad**: Cambios en un solo lugar
-- **Testabilidad**: Fácil de probar con mocks
+- **Reuse**: a single implementation for Accounts, Identity and future services
+- **Consistency**: the same log structure across the solution
+- **Maintainability**: changes in one place
+- **Testability**: easy to test with mocks
 
-### Abstracción: `IRequestContextAccessor`
+### Abstraction: `IRequestContextAccessor`
 
-**Problema**: `LoggingBehavior` necesita acceso a Request ID y Correlation ID, pero estos vienen de HTTP headers (disponibles solo en capa API).
+**Problem**: `LoggingBehavior` needs the request ID and correlation ID, but these come from HTTP headers (only available in the API layer).
 
-**Solución**: Crear una abstracción que permita obtener contexto sin depender de HTTP:
+**Solution**: an abstraction that provides the context without depending on HTTP:
 
 ```csharp
 public interface IRequestContextAccessor
@@ -37,42 +37,44 @@ public interface IRequestContextAccessor
 }
 ```
 
-**Ventajas**:
-- ✅ Behavior agnóstico del origen del contexto (HTTP, Messaging, Tests)
-- ✅ Separation of Concerns: Application Layer no conoce detalles de infraestructura
-- ✅ Testeable: Se puede mockear fácilmente
-- ✅ Extensible: Futuras implementaciones para otros contextos (RabbitMQ, gRPC, etc.)
+**Advantages**:
+- ✅ The behavior doesn't care where the context comes from (HTTP, messaging, tests)
+- ✅ Separation of concerns: the application layer knows nothing about infrastructure
+- ✅ Testable: easy to mock
+- ✅ Extensible: future implementations for other contexts (RabbitMQ, gRPC, etc.)
 
 ---
 
-## 📦 Estructura Implementada
+## 📦 Implemented Structure
 
 ```
 src/
-├── uSLearn.Core.Application/  ← NUEVO
+├── uSLearn.Core.Application/  ← NEW
 │   ├── Abstractions/
 │   │   └── IRequestContextAccessor.cs
 │   └── Behaviors/
 │       └── LoggingBehavior.cs
 │
 ├── Core.Infrastructure/
-│   └── Http/  ← NUEVO
+│   └── Http/  ← NEW
 │       └── HttpRequestContextAccessor.cs
 │
 ├── uSLearn.Accounts.API/
-│   └── Extensions/Extensions.cs (actualizado)
+│   └── Extensions/Extensions.cs (updated)
 │
 └── uSLearn.Identity.API/
-    └── Extensions/Extensions.cs (actualizado)
+    └── Extensions/Extensions.cs (updated)
 ```
+
+> In Stage.04-2 the project is renamed to `Core.Application`, matching the other building blocks.
 
 ---
 
-## 🔧 Componentes Implementados
+## 🔧 Implemented Components
 
-### 1. `IRequestContextAccessor` (Abstracción)
+### 1. `IRequestContextAccessor` (abstraction)
 
-**Ubicación**: `uSLearn.Core.Application/Abstractions/IRequestContextAccessor.cs`
+**Location**: `uSLearn.Core.Application/Abstractions/IRequestContextAccessor.cs`
 
 ```csharp
 namespace uSLearn.Core.Application.Abstractions;
@@ -93,24 +95,24 @@ public interface IRequestContextAccessor
 
 ---
 
-### 2. `LoggingBehavior<TRequest, TResponse>` (Genérico)
+### 2. `LoggingBehavior<TRequest, TResponse>` (generic)
 
-**Ubicación**: `uSLearn.Core.Application/Behaviors/LoggingBehavior.cs`
+**Location**: `uSLearn.Core.Application/Behaviors/LoggingBehavior.cs`
 
-**Características**:
-- ✅ Inyección opcional de `IRequestContextAccessor` (null-safe)
-- ✅ Medición de tiempos con `Stopwatch`
-- ✅ Scopes automáticos con `BeginScope()`
-- ✅ Detección de comandos lentos (threshold: 500ms)
-- ✅ Manejo de excepciones con contexto completo
+**Features**:
+- ✅ Optional (null-safe) injection of `IRequestContextAccessor`
+- ✅ Timing with `Stopwatch`
+- ✅ Automatic scopes with `BeginScope()`
+- ✅ Slow command detection (threshold: 500ms)
+- ✅ Exception handling with full context
 
-**Código relevante**:
+**Relevant code**:
 
 ```csharp
 public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
 {
     private readonly ILogger<LoggingBehavior<TRequest, TResponse>> _logger;
-    private readonly IRequestContextAccessor? _contextAccessor; // ← Opcional
+    private readonly IRequestContextAccessor? _contextAccessor; // ← Optional
     private const int SlowCommandThresholdMs = 500;
 
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
@@ -119,7 +121,7 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
         var requestId = _contextAccessor?.RequestId ?? "N/A";
         var correlationId = _contextAccessor?.CorrelationId ?? "N/A";
 
-        // Scope con contexto estructurado
+        // Scope with structured context
         using var scope = _logger.BeginScope(new Dictionary<string, object>
         {
             ["CommandName"] = commandName,
@@ -136,18 +138,18 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
 
             if (stopwatch.ElapsedMilliseconds > SlowCommandThresholdMs)
             {
-                _logger.LogWarning("Command {CommandName} took {ElapsedMs}ms...", ...);
+                _logger.LogWarning("Command {CommandName} took {ElapsedMilliseconds}ms...", ...);
             }
             else
             {
-                _logger.LogInformation("Command {CommandName} handled in {ElapsedMs}ms", ...);
+                _logger.LogInformation("Command {CommandName} handled in {ElapsedMilliseconds}ms", ...);
             }
 
             return response;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error handling command {CommandName} after {ElapsedMs}ms", ...);
+            _logger.LogError(ex, "Error handling command {CommandName} after {ElapsedMilliseconds}ms", ...);
             throw;
         }
     }
@@ -156,11 +158,11 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
 
 ---
 
-### 3. `HttpRequestContextAccessor` (Implementación HTTP)
+### 3. `HttpRequestContextAccessor` (HTTP implementation)
 
-**Ubicación**: `Core.Infrastructure/Http/HttpRequestContextAccessor.cs`
+**Location**: `Core.Infrastructure/Http/HttpRequestContextAccessor.cs`
 
-**Extracción de contexto desde HTTP headers**:
+**Context extracted from HTTP headers**:
 
 ```csharp
 public class HttpRequestContextAccessor : IRequestContextAccessor
@@ -178,17 +180,17 @@ public class HttpRequestContextAccessor : IRequestContextAccessor
             .Request.Headers.TryGetValue("x-correlation-id", out var id) == true 
             ? id.ToString() 
             : Activity.Current?.Id ?? _httpContextAccessor.HttpContext?.TraceIdentifier;
-            // ↑ Fallback a OpenTelemetry trace o ASP.NET TraceIdentifier
+            // ↑ Falls back to the OpenTelemetry trace or the ASP.NET TraceIdentifier
 }
 ```
 
 ---
 
-## ⚙️ Registro en DI
+## ⚙️ DI Registration
 
 ### Accounts.API
 
-**Archivo**: `src/uSLearn.Accounts.API/Extensions/Extensions.cs`
+**File**: `src/uSLearn.Accounts.API/Extensions/Extensions.cs`
 
 ```csharp
 services.AddHttpContextAccessor();
@@ -197,18 +199,18 @@ services.AddScoped<IRequestContextAccessor, HttpRequestContextAccessor>();
 services.AddMediatR(cfg =>
 {
     cfg.RegisterServicesFromAssemblyContaining(typeof(Program));
-    cfg.AddOpenBehavior(typeof(LoggingBehavior<,>)); // ← Desde Core.Application
+    cfg.AddOpenBehavior(typeof(LoggingBehavior<,>)); // ← From Core.Application
     cfg.AddOpenBehavior(typeof(TransactionBehavior<,>));
 });
 ```
 
-### Identity.API (preparado para uso futuro)
+### Identity.API (ready for future use)
 
 ```csharp
 services.AddHttpContextAccessor();
 services.AddScoped<IRequestContextAccessor, HttpRequestContextAccessor>();
 
-// Cuando Identity tenga comandos/queries:
+// Once Identity has commands/queries:
 // services.AddMediatR(cfg =>
 // {
 //     cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
@@ -217,49 +219,49 @@ services.AddScoped<IRequestContextAccessor, HttpRequestContextAccessor>();
 
 ---
 
-## 🔄 Flujo de Ejecución
+## 🔄 Execution Flow
 
 ```
 HTTP Request
   Headers: x-requestid, x-correlation-id
       ↓
 HttpRequestContextAccessor
-  Extrae RequestId y CorrelationId
+  Extracts RequestId and CorrelationId
       ↓
 MediatR Pipeline:
   ┌──────────────────────────────────────┐
-  │ 1️⃣ LoggingBehavior                  │
+  │ 1️⃣ LoggingBehavior                   │
   │    ├─ BeginScope (RequestId, CorrelationId)
-  │    ├─ Log: "Handling command..."    │
+  │    ├─ Log: "Handling command..."     │
   │    └─ Start Stopwatch                │
   ├──────────────────────────────────────┤
-  │ 2️⃣ TransactionBehavior              │
+  │ 2️⃣ TransactionBehavior               │
   │    └─ Begin DB Transaction           │
   ├──────────────────────────────────────┤
-  │ 3️⃣ CommandHandler (business logic)  │
+  │ 3️⃣ CommandHandler (business logic)   │
   ├──────────────────────────────────────┤
   │ ← Response                           │
   ├──────────────────────────────────────┤
-  │ 2️⃣ TransactionBehavior (commit)     │
+  │ 2️⃣ TransactionBehavior (commit)      │
   ├──────────────────────────────────────┤
-  │ 1️⃣ LoggingBehavior (exit)           │
+  │ 1️⃣ LoggingBehavior (exit)            │
   │    ├─ Stop Stopwatch                 │
   │    ├─ Log: "Command handled in Xms"  │
-  │    └─ Warning si >500ms              │
+  │    └─ Warning if >500ms              │
   └──────────────────────────────────────┘
 ```
 
-**Todos los logs dentro del pipeline incluyen**:
+**Every log inside the pipeline includes**:
 - CommandName
 - RequestId
 - CorrelationId
-- ElapsedMilliseconds (en logs de salida)
+- ElapsedMilliseconds (in exit logs)
 
 ---
 
-## 📊 Ejemplos de Logs Estructurados
+## 📊 Structured Log Examples
 
-### Comando Exitoso
+### Successful command
 
 ```json
 {
@@ -279,7 +281,7 @@ MediatR Pipeline:
 }
 ```
 
-### Comando Lento (Warning)
+### Slow command (warning)
 
 ```json
 {
@@ -290,7 +292,7 @@ MediatR Pipeline:
 }
 ```
 
-### Error con Stack Trace
+### Error with stack trace
 
 ```json
 {
@@ -307,49 +309,49 @@ MediatR Pipeline:
 
 ---
 
-## 🔧 Compatibilidad con MediatR 14.x
+## 🔧 MediatR 14.x Compatibility
 
-**Cambio importante**: En MediatR 14.0.0, el delegado `RequestHandlerDelegate<TResponse>` cambió:
+**Notable change**: since MediatR 13, the `RequestHandlerDelegate<TResponse>` delegate accepts a `CancellationToken`:
 
 ```csharp
 // MediatR 12.x
 await next();
 
 // MediatR 14.x
-await next(cancellationToken); // ← Ahora requiere CancellationToken
+await next(cancellationToken); // ← Pass the CancellationToken through
 ```
 
-**Beneficio**: Propagación correcta de cancelaciones a través del pipeline (timeouts, cliente desconectado, etc.).
+**Benefit**: cancellation propagates correctly through the pipeline (timeouts, client disconnects, etc.).
 
 ---
 
-## 🚀 Reutilización en Nuevos Microservicios
+## 🚀 Reuse in New Microservices
 
-Para agregar logging en un nuevo microservicio:
+To add logging to a new microservice:
 
-1. **Referenciar** `uSLearn.Core.Application` y `Core.Infrastructure`
-2. **Registrar** en DI:
+1. **Reference** `Core.Application` and `Core.Infrastructure`
+2. **Register** in DI:
 ```csharp
 services.AddHttpContextAccessor();
 services.AddScoped<IRequestContextAccessor, HttpRequestContextAccessor>();
 services.AddMediatR(cfg => cfg.AddOpenBehavior(typeof(LoggingBehavior<,>)));
 ```
 
-**¡3 líneas de código!** 🚀
+**Three lines of code!** 🚀
 
 ---
 
-## 🎓 Conceptos Clave
+## 🎓 Key Concepts
 
-### Request ID vs Correlation ID
+### Request ID vs correlation ID
 
-| Concepto | Request ID | Correlation ID |
+| Concept | Request ID | Correlation ID |
 |----------|-----------|----------------|
-| **Alcance** | Una sola operación | Flujo completo (múltiples requests) |
-| **Ejemplo** | `CreateOrganizationCommand` | "User Registration Flow" |
-| **Uso** | Idempotencia | Distributed tracing |
+| **Scope** | A single operation | A whole flow (several requests) |
+| **Example** | `CreateOrganizationCommand` | "User Registration Flow" |
+| **Use** | Idempotency | Distributed tracing |
 
-**Ejemplo práctico**:
+**Practical example**:
 ```
 User Registration (Correlation ID: reg-flow-001)
   ├─ Request 1: CreateOrganization (Request ID: guid-001)
@@ -357,15 +359,15 @@ User Registration (Correlation ID: reg-flow-001)
   └─ Request 3: SendWelcomeEmail (Request ID: guid-003)
 ```
 
-### Structured Logging
+### Structured logging
 
-Usar placeholders con nombre en lugar de interpolación:
+Use named placeholders instead of string interpolation:
 
 ```csharp
-// ❌ Malo
+// ❌ Bad
 _logger.LogInformation($"Command {commandName} took {elapsed}ms");
 
-// ✅ Bueno (queryable en herramientas de observabilidad)
+// ✅ Good (queryable in observability tools)
 _logger.LogInformation(
     "Command {CommandName} took {ElapsedMs}ms",
     commandName,
@@ -374,28 +376,28 @@ _logger.LogInformation(
 
 ---
 
-## 📋 Archivos Creados/Modificados
+## 📋 Files Created/Modified
 
-### Nuevos
+### New
 
 - `src/uSLearn.Core.Application/uSLearn.Core.Application.csproj`
 - `src/uSLearn.Core.Application/Abstractions/IRequestContextAccessor.cs`
 - `src/uSLearn.Core.Application/Behaviors/LoggingBehavior.cs`
 - `src/Core.Infrastructure/Http/HttpRequestContextAccessor.cs`
 
-### Modificados
+### Modified
 
 - `src/uSLearn.Accounts.API/Extensions/Extensions.cs`
 - `src/uSLearn.Accounts.API/Application/Behaviors/TransactionBehavior.cs` (MediatR 14.x)
 - `src/uSLearn.Identity.API/Extensions/Extensions.cs`
 
-### Eliminados
+### Removed
 
-- `src/uSLearn.Accounts.API/Application/Behaviors/LoggingBehavior.cs` (movido a Core.Application)
+- `src/uSLearn.Accounts.API/Application/Behaviors/LoggingBehavior.cs` (moved to Core.Application)
 
 ---
 
-## ✅ Verificación
+## ✅ Verification
 
 ### Build
 ```bash
@@ -403,41 +405,39 @@ dotnet build
 # Build successful
 ```
 
-### Ejecución
+### Run
 ```bash
 dotnet run --project src/uSLearn.AppHost
-# Aplicación ejecutándose sin errores
+# Application running without errors
 ```
 
-### Logs en Aspire Dashboard
-- Acceder a: http://localhost:15888
-- Navegar a **Structured Logs**
-- Filtrar por: `CommandName`, `RequestId`, `CorrelationId`
-- Verificar presencia de `ElapsedMilliseconds`
+### Logs in the Aspire dashboard
+- Open the dashboard (the URL is printed in the console)
+- Go to **Structured Logs**
+- Filter by `CommandName`, `RequestId`, `CorrelationId`
+- Check that `ElapsedMilliseconds` is present
 
 ---
 
-## 🧭 Próximos Pasos
+## 🧭 Next Steps
 
-➡️ **Stage.04-2**: Validaciones con FluentValidation
+➡️ **Stage.04-2**: Validation with FluentValidation
 
-- Implementar `ValidationBehavior<TRequest, TResponse>`
-- Crear `AbstractValidator` para cada comando
-- Retornar errores estructurados (400 Bad Request)
-- Prevenir comandos inválidos antes de llegar a la BD
+- Implement `ValidationBehavior<TRequest, TResponse>`
+- Create an `AbstractValidator` for each command
+- Return structured errors (400 Bad Request)
+- Stop invalid commands before they reach the DB
 
-**Orden en el pipeline**:
+**Pipeline order**:
 ```
 LoggingBehavior → ValidationBehavior → TransactionBehavior → Handler
 ```
 
 ---
 
-## 📚 Referencias
+## 📚 References
 
 - [High-performance logging in .NET](https://learn.microsoft.com/en-us/dotnet/core/extensions/high-performance-logging)
 - [Structured logging in ASP.NET Core](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/logging#log-message-template)
-- [MediatR Pipeline Behaviors](https://github.com/jbogard/MediatR/wiki/Behaviors)
+- [MediatR pipeline behaviors](https://github.com/jbogard/MediatR/wiki/Behaviors)
 - [Distributed tracing in .NET](https://learn.microsoft.com/en-us/dotnet/core/diagnostics/distributed-tracing)
-
----

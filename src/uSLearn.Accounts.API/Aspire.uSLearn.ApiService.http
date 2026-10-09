@@ -1,6 +1,39 @@
-@ApiService_HostAddress = http://localhost:5345
+@ApiService_HostAddress = https://localhost:7375
+@ApiVersion = 1.0
 
-GET {{ApiService_HostAddress}}/weatherforecast/
+### Create an organization (x-requestid makes the request idempotent: resend it and no duplicate is created)
+PUT {{ApiService_HostAddress}}/api/accounts?api-version={{ApiVersion}}
+Content-Type: application/json
+x-requestid: {{$guid}}
+
+{
+  "taxIdNumber": "B12345678",
+  "taxNumberType": "Cif",
+  "name": "ACME Corp",
+  "legalName": "ACME Corporation S.L.",
+  "street": "Main Street 1",
+  "city": "Barcelona",
+  "state": "Barcelona",
+  "country": "Spain",
+  "zipCode": "08001",
+  "organizationType": "Company"
+}
+
+### List organizations
+GET {{ApiService_HostAddress}}/api/accounts?api-version={{ApiVersion}}
 Accept: application/json
 
-###
+### Get an organization by id (copy an id from the list above)
+GET {{ApiService_HostAddress}}/api/accounts/00000000-0000-0000-0000-000000000000?api-version={{ApiVersion}}
+Accept: application/json
+
+### Invalid request: returns 400 with the validation errors
+PUT {{ApiService_HostAddress}}/api/accounts?api-version={{ApiVersion}}
+Content-Type: application/json
+x-requestid: {{$guid}}
+
+{
+  "name": "",
+  "legalName": "",
+  "taxIdNumber": ""
+}

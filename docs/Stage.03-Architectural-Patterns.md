@@ -1,50 +1,50 @@
-# Stage.03 - Patrones Arquitectónicos Detallados
+# Stage.03 - Architectural Patterns in Depth
 
-> 📖 **Documento complementario de:** [`Stage.03-2-Idempotencia.md`](Stage.03-2-Idempotencia.md)  
-> Este documento profundiza en los patrones arquitectónicos con diagramas, ejemplos de código y análisis detallado.
+> 📖 **Companion to:** [`Stage.03-2-Idempotency.md`](Stage.03-2-Idempotency.md)  
+> This document goes deeper into the architectural patterns, with diagrams, code samples and detailed analysis.
 
-## 📚 Índice de Patrones Implementados
+## 📚 Index of Implemented Patterns
 
-| Patrón | Problema que resuelve | Sección |
+| Pattern | Problem it solves | Section |
 |--------|----------------------|---------|
-| **Transactional Outbox** | Inconsistencia entre BD y eventos publicados | [Ver](#1️⃣-transactional-outbox-pattern) |
-| **Idempotent Consumer** | Procesamiento duplicado de comandos | [Ver](#2️⃣-idempotent-consumer-pattern) |
-| **Unit of Work** | Operaciones no atómicas | [Ver](#3️⃣-unit-of-work-pattern) |
-| **Pipeline Behavior** | Cross-cutting concerns duplicados | [Ver](#4️⃣-pipeline-behavior-pattern) |
-| **Eventual Consistency** | Transacciones distribuidas complejas | [Ver](#5️⃣-eventual-consistency-pattern) |
+| **Transactional Outbox** | Inconsistency between the DB and published events | [See](#1️⃣-transactional-outbox-pattern) |
+| **Idempotent Consumer** | Duplicate command processing | [See](#2️⃣-idempotent-consumer-pattern) |
+| **Unit of Work** | Non-atomic operations | [See](#3️⃣-unit-of-work-pattern) |
+| **Pipeline Behavior** | Duplicated cross-cutting concerns | [See](#4️⃣-pipeline-behavior-pattern) |
+| **Eventual Consistency** | Complex distributed transactions | [See](#5️⃣-eventual-consistency-pattern) |
 
 ---
 
 ## 1️⃣ Transactional Outbox Pattern
 
-### 🎯 Problema
+### 🎯 Problem
 
-En un sistema distribuido con eventos de integración, existe una race condition crítica:
-
-```
-❌ ESCENARIO PROBLEMÁTICO:
-
-1. Comando crea Organization en BD
-2. Evento publicado a RabbitMQ          ← Publicado ANTES del commit
-3. BD hace commit
-4. ❌ Commit falla (deadlock, constraint violation, etc.)
-
-Resultado: Evento enviado pero la entidad nunca fue creada
-           Otros servicios reciben datos de una operación que falló
-```
-
-### ✅ Solución
-
-Guardar eventos en una tabla **dentro de la misma transacción** que las entidades de dominio:
+In a distributed system with integration events there is a critical race condition:
 
 ```
-✅ FLUJO CORRECTO CON OUTBOX:
+❌ PROBLEMATIC SCENARIO:
+
+1. Command creates Organization in the DB
+2. Event published to RabbitMQ          ← Published BEFORE the commit
+3. DB commits
+4. ❌ Commit fails (deadlock, constraint violation, etc.)
+
+Result: the event was sent but the entity was never created
+        Other services receive data from an operation that failed
+```
+
+### ✅ Solution
+
+Store events in a table **within the same transaction** as the domain entities:
+
+```
+✅ CORRECT FLOW WITH OUTBOX:
 
 ┌─────────────────────────────────────────┐
 │  BEGIN TRANSACTION                      │
 ├─────────────────────────────────────────┤
 │                                         │
-│  1. INSERT INTO Organizations (...)     │
+│  1. INSERT INTO Organization (...)      │
 │                                         │
 │  2. INSERT INTO IntegrationEventLog     │
 │     - EventId: guid                     │
@@ -52,32 +52,32 @@ Guardar eventos en una tabla **dentro de la misma transacción** que las entidad
 │     - State: NotPublished               │
 │     - Content: JSON serialized event    │
 │                                         │
-│  3. COMMIT                              │ ← Ambas operaciones atómicas
+│  3. COMMIT                              │ ← Both operations are atomic
 │                                         │
 └─────────────────────────────────────────┘
 
-4. Después del commit exitoso:
-   - Recuperar eventos con TransactionId
-   - Publicar a RabbitMQ
-   - Marcar como Published
+4. After a successful commit:
+   - Retrieve events by TransactionId
+   - Publish to RabbitMQ
+   - Mark as Published
 ```
 
-### 🔧 Implementación en el Código
+### 🔧 Implementation in the Code
 
 **AccountIntegrationEventService.cs:**
 
 ```csharp
-// Fase 1: Guardar evento (dentro de transacción)
+// Phase 1: Save the event (inside the transaction)
 public async Task AddAndSaveEventAsync(IntegrationEvent evt)
 {
-    // GetCurrentTransaction() asegura que use la transacción activa
+    // GetCurrentTransaction() makes sure the active transaction is used
     await _eventLogService.SaveEventAsync(evt, _accountContext.GetCurrentTransaction());
 }
 
-// Fase 2: Publicar eventos (después del commit)
+// Phase 2: Publish events (after the commit)
 public async Task PublishEventsThroughEventBusAsync(Guid transactionId)
 {
-    // Solo eventos de esta transacción específica
+    // Only the events of this specific transaction
     var pendingLogEvents = await _eventLogService
         .RetrieveEventLogsPendingToPublishAsync(transactionId);
 
@@ -90,102 +90,101 @@ public async Task PublishEventsThroughEventBusAsync(Guid transactionId)
 }
 ```
 
-### 📊 Estados del Evento
+### 📊 Event States
 
 ```
 ┌─────────────────┐
-│  NotPublished   │ ← Evento guardado en BD
+│  NotPublished   │ ← Event saved in the DB
 └────────┬────────┘
          │
          │ PublishEventsThroughEventBusAsync()
          ↓
 ┌─────────────────┐
-│   InProgress    │ ← Publicación en curso
+│   InProgress    │ ← Publishing in progress
 └────────┬────────┘
          │
     ┌────┴────┐
     │         │
     ↓         ↓
-┌───────┐  ┌──────────────┐
+┌─────────┐  ┌───────────────┐
 │Published│  │PublishedFailed│
-└────────┘  └──────────────┘
+└─────────┘  └───────────────┘
 ```
 
-### ⚡ Beneficios
+### ⚡ Benefits
 
-- ✅ **Atomicidad**: Dominio + Eventos se persisten juntos o ninguno
-- ✅ **Consistencia**: Estado de BD = Eventos guardados
-- ✅ **Durabilidad**: Eventos sobreviven a fallos de proceso
-- ⚠️ **At-least-once delivery (pendiente)**: los eventos que fallan quedan como `PublishedFailed`. Para garantizar la entrega haría falta un proceso en segundo plano que los republique; todavía no está implementado
+- ✅ **Atomicity**: domain + events are persisted together, or not at all
+- ✅ **Consistency**: DB state = stored events
+- ✅ **Durability**: events survive process failures
+- ⚠️ **At-least-once delivery (pending)**: failed events stay as `PublishedFailed`. Guaranteeing delivery would require a background process that republishes them; it is not implemented yet
 
 ---
 
 ## 2️⃣ Idempotent Consumer Pattern
 
-### 🎯 Problema
+### 🎯 Problem
 
-Los clientes pueden enviar el mismo comando múltiples veces:
-
-```
-❌ ESCENARIO PROBLEMÁTICO:
-
-Cliente → CreateOrganizationCommand
-           ↓
-         API procesa... ⏳ (demora 5 segundos)
-           ↓
-Cliente timeout (3s) → Reintenta ❌
-           ↓
-         API crea Organization #1 ✅
-           ↓
-         API crea Organization #2 ❌ (DUPLICADO)
-
-Resultado: 2 organizaciones creadas para 1 solicitud
-```
-
-### ✅ Solución
-
-El cliente genera un **Request ID único** y lo envía con cada comando:
+Clients may send the same command several times:
 
 ```
-✅ FLUJO CON IDEMPOTENCIA:
+❌ PROBLEMATIC SCENARIO:
 
-Cliente genera: RequestId = "a1b2c3d4..."
+Client → CreateOrganizationCommand
+           ↓
+         API processing... ⏳ (takes 5 seconds)
+           ↓
+Client timeout (3s) → Retries ❌
+           ↓
+         API creates Organization #1 ✅
+           ↓
+         API creates Organization #2 ❌ (DUPLICATE)
 
-Intento 1:
+Result: 2 organizations created for 1 request
+```
+
+### ✅ Solution
+
+The client generates a **unique request ID** and sends it with every command:
+
+```
+✅ FLOW WITH IDEMPOTENCY:
+
+Client generates: RequestId = "a1b2c3d4..."
+
+Attempt 1:
   → IdentifiedCommand(CreateOrganizationCommand, "a1b2c3d4")
   → RequestManager.ExistAsync("a1b2c3d4") → FALSE
-  → Guarda Request ID en BD
-  → Procesa comando
-  → Organization creada ✅
+  → Saves the request ID in the DB
+  → Processes the command
+  → Organization created ✅
 
-Intento 2 (reintento por timeout):
+Attempt 2 (retry after timeout):
   → IdentifiedCommand(CreateOrganizationCommand, "a1b2c3d4")
   → RequestManager.ExistAsync("a1b2c3d4") → TRUE ✅
-  → Retorna CreateResultForDuplicateRequest()
-  → NO procesa comando
-  → Retorna éxito sin crear duplicado ✅
+  → Returns CreateResultForDuplicateRequest()
+  → Does NOT process the command
+  → Returns success without creating a duplicate ✅
 ```
 
-### 🔧 Implementación en el Código
+### 🔧 Implementation in the Code
 
 **IdentifiedCommandHandler.cs:**
 
 ```csharp
 public async Task<R> Handle(IdentifiedCommand<T, R> message, CancellationToken cancellationToken)
 {
-    // 1. Verificar si ya fue procesado
+    // 1. Check whether it was already processed
     var alreadyExists = await _requestManager.ExistAsync(message.Id);
     
     if (alreadyExists)
     {
-        _logger.LogInformation("Request {RequestId} already processed, returning cached result", message.Id);
-        return CreateResultForDuplicateRequest(); // ← Idempotencia
+        return CreateResultForDuplicateRequest(); // ← Idempotency
     }
 
-    // 2. Registrar Request ID (marca como procesándose)
+    // 2. Register the request ID (marks it as being processed)
     await _requestManager.CreateRequestForCommandAsync<T>(message.Id);
 
-    // 3. Procesar comando
+    // 3. Process the command
     var result = await _mediator.Send(message.Command, cancellationToken);
 
     return result;
@@ -199,11 +198,11 @@ public void Configure(EntityTypeBuilder<ClientRequest> requestConfiguration)
 {
     requestConfiguration.ToTable("requests");
     requestConfiguration.HasKey(r => r.Id);
-    requestConfiguration.HasIndex(r => r.Id).IsUnique(); // ← Última línea de defensa
+    requestConfiguration.HasIndex(r => r.Id).IsUnique(); // ← Last line of defense
 }
 ```
 
-### 📊 Tabla de Requests
+### 📊 Requests Table
 
 ```sql
 SELECT * FROM [account].[requests];
@@ -214,12 +213,12 @@ a1b2c3d4-5678-90ab-cdef-123456789abc  | CreateOrganizationCommand   | 2026-03-06
 b2c3d4e5-6789-01bc-def0-234567890bcd  | CreateOrganizationCommand   | 2026-03-06 10:31:42
 ```
 
-### ⚠️ Consideraciones de Producción
+### ⚠️ Production Considerations
 
-**Problema: Tabla requests crece indefinidamente**
+**Problem: the requests table grows forever**
 
-Soluciones:
-1. **TTL (Time To Live)**: Limpieza periódica de requests antiguos (propuesta, no implementada)
+Solutions:
+1. **TTL (time to live)**: periodic cleanup of old requests (proposal, not implemented)
    ```csharp
    // Background job (sketch)
    var cutoffDate = DateTime.UtcNow.AddDays(-30);
@@ -228,111 +227,111 @@ Soluciones:
        .ExecuteDeleteAsync();
    ```
 
-2. **Partitioning**: Particionar tabla por fecha para mejor performance
+2. **Partitioning**: partition the table by date for better performance
 
-3. **Respuesta cacheada**: Almacenar el resultado junto al Request ID
+3. **Cached response**: store the result next to the request ID (proposal)
    ```csharp
    public class ClientRequest
    {
        public Guid Id { get; set; }
        public string Name { get; set; }
        public DateTime Time { get; set; }
-       public string Result { get; set; } // ← JSON del resultado
+       public string Result { get; set; } // ← Result as JSON
    }
    ```
 
-### ⚡ Beneficios
+### ⚡ Benefits
 
-- ✅ **Exactly-once processing**: Comando se ejecuta solo una vez
-- ✅ **Sin duplicados**: Múltiples reintentos → mismo resultado
-- ✅ **Responsabilidad del cliente**: Cliente controla la unicidad
-- ✅ **Trazabilidad**: Historial de requests procesados
+- ✅ **One execution per request ID**: the command runs only once
+- ✅ **No duplicates**: several retries → same result
+- ✅ **Client responsibility**: the client controls uniqueness
+- ✅ **Traceability**: history of processed requests
 
 ---
 
 ## 3️⃣ Unit of Work Pattern
 
-### 🎯 Problema
+### 🎯 Problem
 
-Múltiples operaciones de BD necesitan ser atómicas:
+Several DB operations must be atomic:
 
 ```
-❌ SIN UNIT OF WORK:
+❌ WITHOUT UNIT OF WORK:
 
 public async Task Handle(CreateOrganizationCommand request)
 {
-    // Operación 1
+    // Operation 1
     var org = new Organization(...);
     await _context.Organizations.AddAsync(org);
     await _context.SaveChangesAsync(); // ← Commit 1
 
-    // Operación 2
+    // Operation 2
     var contact = new OrganizationContact(...);
     await _context.OrganizationContacts.AddAsync(contact);
-    await _context.SaveChangesAsync(); // ← Commit 2 ❌ Puede fallar
+    await _context.SaveChangesAsync(); // ← Commit 2 ❌ May fail
 
-    // Operación 3
+    // Operation 3
     await _eventLogService.SaveEventAsync(...);
-    await _context.SaveChangesAsync(); // ← Commit 3 ❌ Puede fallar
+    await _context.SaveChangesAsync(); // ← Commit 3 ❌ May fail
 
-    // Resultado: Organization creada pero Contact y Event no
+    // Result: Organization created but Contact and Event not
 }
 ```
 
-### ✅ Solución
+### ✅ Solution
 
-TransactionBehavior envuelve TODO el procesamiento en una transacción:
+TransactionBehavior wraps ALL the processing in one transaction:
 
 ```
-✅ CON UNIT OF WORK (TransactionBehavior):
+✅ WITH UNIT OF WORK (TransactionBehavior):
 
 ┌──────────────────────────────────────────┐
 │  BEGIN TRANSACTION                       │
 ├──────────────────────────────────────────┤
 │                                          │
-│  CommandHandler ejecuta:                 │
+│  CommandHandler runs:                    │
 │    ├─ Organizations.Add(org)             │
 │    ├─ OrganizationContacts.Add(contact)  │
 │    └─ EventLog.Add(event)                │
 │                                          │
-│  COMMIT                                  │ ← TODO o NADA
+│  COMMIT                                  │ ← ALL or NOTHING
 │                                          │
 └──────────────────────────────────────────┘
 ```
 
-### 🔧 Implementación en el Código
+### 🔧 Implementation in the Code
 
 **TransactionBehavior.cs:**
 
 ```csharp
 public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, ...)
 {
-    // Evitar transacciones anidadas
+    // Avoid nested transactions
     if (_dbContext.HasActiveTransaction)
     {
         return await next();
     }
 
-    // Usar ExecutionStrategy para resilience
+    // Use an ExecutionStrategy for resilience
     var strategy = _dbContext.Database.CreateExecutionStrategy();
 
     return await strategy.ExecuteAsync(async () =>
     {
         Guid transactionId;
 
-        // Iniciar transacción
+        // Begin transaction
         await using var transaction = await _dbContext.BeginTransactionAsync();
         
         _logger.LogInformation("Begin transaction {TransactionId}", transaction.TransactionId);
 
-        // Ejecutar handler (puede modificar múltiples agregados)
+        // Run the handler (may change several aggregates)
         var response = await next();
 
-        // Commit de TODAS las operaciones
+        // Commit ALL operations
         await _dbContext.CommitTransactionAsync(transaction);
         transactionId = transaction.TransactionId;
 
-        // Publicar eventos SOLO si commit fue exitoso
+        // Publish events ONLY if the commit succeeded
         await _accountIntegrationEventService.PublishEventsThroughEventBusAsync(transactionId);
 
         return response;
@@ -342,62 +341,62 @@ public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TRe
 
 ### 📊 ExecutionStrategy
 
-Maneja reintentos automáticos ante fallos transitorios **siempre que el `DbContext` tenga `EnableRetryOnFailure`**. Sin esa opción, `CreateExecutionStrategy()` devuelve una estrategia que no reintenta. En este stage aún no está activado: llega con el Stage.03-4 en Identity y después del Stage.04 en Accounts.
+Retries automatically on transient failures **as long as the `DbContext` has `EnableRetryOnFailure`**. Without that option, `CreateExecutionStrategy()` returns a strategy that never retries. It isn't enabled at this stage yet: it arrives with Stage.03-4 in Identity and after Stage.04 in Accounts.
 
 ```
-Intento 1: BEGIN → Operaciones → COMMIT → ❌ Deadlock
-           ↓ Espera 1s
-Intento 2: BEGIN → Operaciones → COMMIT → ❌ Timeout
-           ↓ Espera 2s
-Intento 3: BEGIN → Operaciones → COMMIT → ✅ Success
+Attempt 1: BEGIN → Operations → COMMIT → ❌ Deadlock
+           ↓ Wait 1s
+Attempt 2: BEGIN → Operations → COMMIT → ❌ Timeout
+           ↓ Wait 2s
+Attempt 3: BEGIN → Operations → COMMIT → ✅ Success
 ```
 
-### ⚡ Beneficios
+### ⚡ Benefits
 
-- ✅ **Atomicidad**: Todas las operaciones o ninguna
-- ✅ **Isolation**: Cambios no visibles hasta commit
-- ✅ **Consistency**: Estado de BD siempre válido
-- ✅ **Resilience**: Preparado para reintentos ante fallos transitorios (requiere `EnableRetryOnFailure`)
-- ✅ **Centralización**: Lógica transaccional fuera de handlers
+- ✅ **Atomicity**: all operations or none
+- ✅ **Isolation**: changes aren't visible until the commit
+- ✅ **Consistency**: the DB state is always valid
+- ✅ **Resilience**: ready for retries on transient failures (requires `EnableRetryOnFailure`)
+- ✅ **Centralization**: transaction logic outside the handlers
 
 ---
 
 ## 4️⃣ Pipeline Behavior Pattern
 
-### 🎯 Problema
+### 🎯 Problem
 
-Cross-cutting concerns duplicados en cada handler:
+Cross-cutting concerns duplicated in every handler:
 
 ```
-❌ SIN PIPELINE BEHAVIORS:
+❌ WITHOUT PIPELINE BEHAVIORS:
 
 public class CreateOrganizationHandler
 {
     public async Task<bool> Handle(CreateOrganizationCommand request)
     {
-        // Logging (duplicado en todos los handlers)
+        // Logging (duplicated in every handler)
         _logger.LogInformation("Handling {Command}", nameof(CreateOrganizationCommand));
 
-        // Transacción (duplicado en todos los handlers)
+        // Transaction (duplicated in every handler)
         await using var transaction = await _dbContext.BeginTransactionAsync();
 
         try
         {
-            // Lógica de negocio
+            // Business logic
             var org = new Organization(...);
             await _repository.AddAsync(org);
 
-            // Commit (duplicado en todos los handlers)
+            // Commit (duplicated in every handler)
             await _dbContext.CommitTransactionAsync(transaction);
 
-            // Logging (duplicado en todos los handlers)
+            // Logging (duplicated in every handler)
             _logger.LogInformation("Command handled successfully");
 
             return true;
         }
         catch (Exception ex)
         {
-            // Error handling (duplicado en todos los handlers)
+            // Error handling (duplicated in every handler)
             _logger.LogError(ex, "Error handling command");
             throw;
         }
@@ -405,33 +404,33 @@ public class CreateOrganizationHandler
 }
 ```
 
-### ✅ Solución
+### ✅ Solution
 
-Behaviors interceptan comandos y agregan funcionalidad transversal:
+Behaviors intercept commands and add cross-cutting functionality:
 
 ```
-✅ CON PIPELINE BEHAVIORS:
+✅ WITH PIPELINE BEHAVIORS:
 
 Request
   │
   ↓
 ┌─────────────────────┐
-│ LoggingBehavior     │ → Log entrada
+│ LoggingBehavior     │ → Log entry
 ├─────────────────────┤
 │ TransactionBehavior │ → BEGIN TRANSACTION
 ├─────────────────────┤
-│ CommandHandler      │ → Lógica de negocio (solo esto)
+│ CommandHandler      │ → Business logic (only this)
 ├─────────────────────┤
-│ TransactionBehavior │ → COMMIT + Publish events
+│ TransactionBehavior │ → COMMIT + publish events
 ├─────────────────────┤
-│ LoggingBehavior     │ → Log salida
+│ LoggingBehavior     │ → Log exit
 └─────────────────────┘
   │
   ↓
 Response
 ```
 
-### 🔧 Implementación en el Código
+### 🔧 Implementation in the Code
 
 **Program.cs / Extensions.cs:**
 
@@ -440,65 +439,65 @@ services.AddMediatR(cfg =>
 {
     cfg.RegisterServicesFromAssemblyContaining(typeof(Program));
     
-    // Orden importa: se ejecutan en orden de registro
-    cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));       // ← Primero
-    cfg.AddOpenBehavior(typeof(TransactionBehavior<,>));   // ← Segundo
+    // Order matters: behaviors run in registration order
+    cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));       // ← First
+    cfg.AddOpenBehavior(typeof(TransactionBehavior<,>));   // ← Second
 });
 ```
 
-**Handler simplificado:**
+**Simplified handler:**
 
 ```csharp
 public class CreateOrganizationHandler : IRequestHandler<CreateOrganizationCommand, bool>
 {
     public async Task<bool> Handle(CreateOrganizationCommand request, CancellationToken ct)
     {
-        // Solo lógica de negocio
+        // Business logic only
         var org = new Organization(request.Name, request.TaxNumber, ...);
         await _repository.AddAsync(org);
         
         return true;
     }
-    // ← Sin logging, sin transacciones, sin try/catch
+    // ← No logging, no transactions, no try/catch
 }
 ```
 
-### 📊 Cadena de Responsabilidad
+### 📊 Chain of Responsibility
 
 ```csharp
 public interface IPipelineBehavior<TRequest, TResponse>
 {
     Task<TResponse> Handle(
         TRequest request,
-        RequestHandlerDelegate<TResponse> next, // ← Siguiente en la cadena
+        RequestHandlerDelegate<TResponse> next, // ← Next in the chain
         CancellationToken cancellationToken
     );
 }
 ```
 
-Cada behavior decide si:
-1. Ejecutar lógica antes de `next()`
-2. Llamar o no a `next()` (puede cortar la cadena)
-3. Ejecutar lógica después de `next()`
+Each behavior decides whether to:
+1. Run logic before `next()`
+2. Call `next()` or not (it can short-circuit the chain)
+3. Run logic after `next()`
 
-### ⚡ Beneficios
+### ⚡ Benefits
 
-- ✅ **DRY**: Lógica transversal en un solo lugar
-- ✅ **Separation of Concerns**: Handlers solo contienen lógica de negocio
-- ✅ **Composabilidad**: Fácil agregar/quitar behaviors
-- ✅ **Testabilidad**: Behaviors y handlers se testean independientemente
-- ✅ **Orden controlado**: Ejecución predecible
+- ✅ **DRY**: cross-cutting logic in one place
+- ✅ **Separation of concerns**: handlers only contain business logic
+- ✅ **Composability**: easy to add/remove behaviors
+- ✅ **Testability**: behaviors and handlers are tested independently
+- ✅ **Controlled order**: predictable execution
 
 ---
 
 ## 5️⃣ Eventual Consistency Pattern
 
-### 🎯 Problema
+### 🎯 Problem
 
-Transacciones distribuidas son lentas, complejas y frágiles:
+Distributed transactions are slow, complex and fragile:
 
 ```
-❌ TRANSACCIÓN DISTRIBUIDA (2PC):
+❌ DISTRIBUTED TRANSACTION (2PC):
 
 Coordinator:
   ├─ Phase 1: PREPARE
@@ -506,49 +505,49 @@ Coordinator:
   │   ├─ Identity Service → Can commit? ✅
   │   └─ Billing Service → Can commit? ❌ TIMEOUT
   │
-  └─ Phase 2: ROLLBACK (uno falló)
+  └─ Phase 2: ROLLBACK (one failed)
       ├─ Accounts Service → Rollback
       └─ Identity Service → Rollback
 
-Problemas:
-- Locks prolongados en múltiples BDs
-- Fallo de un servicio bloquea a todos
-- Complejidad del protocolo 2PC
+Problems:
+- Long-held locks across several DBs
+- One failing service blocks all of them
+- Complexity of the 2PC protocol
 ```
 
-### ✅ Solución
+### ✅ Solution
 
-Aceptar **inconsistencia temporal** y converger a consistencia mediante eventos.
+Accept **temporary inconsistency** and converge to consistency through events.
 
-> Ejemplo ilustrativo: `Billing Service` y `TenantCreatedIntegrationEvent` no existen en el proyecto; sirven para mostrar cómo se encadenaría la consistencia entre varios servicios.
+> Illustrative example: `Billing Service` and `TenantCreatedIntegrationEvent` don't exist in the project; they show how consistency would chain across several services.
 
 ```
 ✅ EVENTUAL CONSISTENCY:
 
 1. Accounts Service:
-   ├─ Crear Organization (COMMIT) ✅
-   └─ Publicar OrganizationCreatedIntegrationEvent
+   ├─ Create Organization (COMMIT) ✅
+   └─ Publish OrganizationCreatedIntegrationEvent
 
-2. Identity Service (recibe evento):
-   ├─ Crear Tenant
-   └─ Publicar TenantCreatedIntegrationEvent
+2. Identity Service (receives the event):
+   ├─ Create Tenant
+   └─ Publish TenantCreatedIntegrationEvent
    
    ⏳ Delay: 200ms
 
-3. Billing Service (recibe evento):
-   ├─ Crear Customer
-   └─ Activar suscripción
+3. Billing Service (receives the event):
+   ├─ Create Customer
+   └─ Activate subscription
    
    ⏳ Delay: 500ms
 
-Resultado:
-T+0ms:   Organization creada ✅, Tenant ❌, Customer ❌
-T+200ms: Organization creada ✅, Tenant creado ✅, Customer ❌
-T+500ms: Organization creada ✅, Tenant creado ✅, Customer creado ✅
-         ↑ CONSISTENCIA EVENTUAL ALCANZADA
+Result:
+T+0ms:   Organization created ✅, Tenant ❌, Customer ❌
+T+200ms: Organization created ✅, Tenant created ✅, Customer ❌
+T+500ms: Organization created ✅, Tenant created ✅, Customer created ✅
+         ↑ EVENTUAL CONSISTENCY REACHED
 ```
 
-### 🔧 Implementación en el Código
+### 🔧 Implementation in the Code
 
 **OrganizationCreatedDomainEventHandler.cs:**
 
@@ -557,7 +556,7 @@ public async Task Handle(OrganizationCreatedDomainEvent notification, Cancellati
 {
     var organization = await _organizationRepository.GetAsync(notification.OrganizationId);
     
-    // Crear evento de integración
+    // Create the integration event
     var integrationEvent = new OrganizationCreatedIntegrationEvent(
         organization.TenantId,
         organization.Id,
@@ -567,16 +566,16 @@ public async Task Handle(OrganizationCreatedDomainEvent notification, Cancellati
         organization.Address?.CountryCode!
     );
     
-    // Guardar en Outbox (misma transacción)
+    // Save to the outbox (same transaction)
     await _accountIntegrationEventService.AddAndSaveEventAsync(integrationEvent);
     
-    // Publicación ocurre después del commit (TransactionBehavior)
+    // Publishing happens after the commit (TransactionBehavior)
 }
 ```
 
-**Identity.API (consumidor):**
+**Identity.API (consumer):**
 
-En este stage el handler solo registra la recepción del evento. La creación del tenant y del usuario administrador llega en el Stage.03-3 (y se hace atómica en el 03-4):
+At this stage the handler only logs that the event was received. Creating the tenant and the admin user arrives in Stage.03-3 (and becomes atomic in 03-4):
 
 ```csharp
 public class OrganizationCreatedIntegrationEventHandler 
@@ -584,7 +583,7 @@ public class OrganizationCreatedIntegrationEventHandler
 {
     public async Task Handle(OrganizationCreatedIntegrationEvent @event)
     {
-        // Se ejecuta de forma asíncrona, después del commit en Accounts
+        // Runs asynchronously, after the commit in Accounts
         _logger.LogInformation("Received integration event for organization created: {OrganizationId} - {Name}",
             @event.OrganizationId, @event.Name);
         await Task.CompletedTask;
@@ -592,10 +591,10 @@ public class OrganizationCreatedIntegrationEventHandler
 }
 ```
 
-### 📊 Timeline de Consistencia
+### 📊 Consistency Timeline
 
 ```
-Servicio A (Accounts)     Servicio B (Identity)    Servicio C (Billing)
+Service A (Accounts)      Service B (Identity)     Service C (Billing)
      │                            │                         │
      │ CreateOrganization         │                         │
      ├─────────────────► ✅       │                         │
@@ -616,35 +615,35 @@ Servicio A (Accounts)     Servicio B (Identity)    Servicio C (Billing)
   CONSISTENT                  CONSISTENT                CONSISTENT
 ```
 
-### ⚠️ Desafíos
+### ⚠️ Challenges
 
-1. **Idempotencia**: Eventos pueden recibirse múltiples veces → Stage.03-3
-2. **Orden**: Eventos pueden llegar desordenados → Versioning
-3. **Compensación**: ¿Qué pasa si un paso falla? → Saga pattern
-4. **Monitoring**: ¿Cómo saber si el sistema convergió? → Distributed tracing
+1. **Idempotency**: events may be received more than once → Stage.03-3
+2. **Ordering**: events may arrive out of order → versioning
+3. **Compensation**: what if a step fails? → Saga pattern
+4. **Monitoring**: how do we know the system converged? → distributed tracing
 
-### ⚡ Beneficios
+### ⚡ Benefits
 
-- ✅ **Escalabilidad**: Servicios procesan eventos asincrónicamente
-- ✅ **Disponibilidad**: Un servicio caído no afecta a otros
-- ✅ **Autonomía**: Cada servicio tiene su propia BD
-- ✅ **Simplicity**: Evita complejidad de transacciones distribuidas
+- ✅ **Scalability**: services process events asynchronously
+- ✅ **Availability**: one service being down doesn't affect the others
+- ✅ **Autonomy**: each service has its own DB
+- ✅ **Simplicity**: avoids the complexity of distributed transactions
 
 ---
 
-## 📊 Resumen Comparativo
+## 📊 Comparative Summary
 
-| Patrón | Garantiza | Protege Contra | Implementación |
+| Pattern | Guarantees | Protects against | Implementation |
 |--------|-----------|----------------|----------------|
-| **Outbox** | Consistencia BD ↔ Eventos | Eventos enviados sin BD commit | `IntegrationEventLog` + `TransactionBehavior` |
-| **Idempotency** | Exactly-once processing | Comandos duplicados | `IdentifiedCommand` + `RequestManager` |
-| **Unit of Work** | Atomicidad de operaciones | Commits parciales | `TransactionBehavior` con `ExecutionStrategy` |
-| **Pipeline Behavior** | Separation of concerns | Código duplicado | MediatR behaviors |
-| **Eventual Consistency** | Consistencia eventual | Transacciones distribuidas | Integration events |
+| **Outbox** | DB ↔ events consistency | Events sent without a DB commit | `IntegrationEventLog` + `TransactionBehavior` |
+| **Idempotency** | One execution per request ID | Duplicate commands | `IdentifiedCommand` + `RequestManager` |
+| **Unit of Work** | Atomic operations | Partial commits | `TransactionBehavior` with `ExecutionStrategy` |
+| **Pipeline Behavior** | Separation of concerns | Duplicated code | MediatR behaviors |
+| **Eventual Consistency** | Eventual consistency | Distributed transactions | Integration events |
 
 ---
 
-## 🔗 Cómo se Relacionan los Patrones
+## 🔗 How the Patterns Fit Together
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -662,7 +661,7 @@ Servicio A (Accounts)     Servicio B (Identity)    Servicio C (Billing)
 │  │  │  │  (Save Integration Events)                 │  │  │ │
 │  │  │  └────────────────────────────────────────────┘  │  │ │
 │  │  └──────────────────────────────────────────────────┘  │ │
-│  │  COMMIT ✅                                              │ │
+│  │  COMMIT ✅                                             │ │
 │  │  Publish Events → EVENTUAL CONSISTENCY                 │ │
 │  └────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
@@ -670,20 +669,20 @@ Servicio A (Accounts)     Servicio B (Identity)    Servicio C (Billing)
 
 ---
 
-## 🎓 Lecciones Clave
+## 🎓 Key Lessons
 
-1. **Outbox antes que eventos**: Siempre guardar eventos antes de publicar
-2. **Idempotencia es responsabilidad del cliente**: El cliente genera Request ID
-3. **Transacciones locales**: Evitar transacciones distribuidas
-4. **Behaviors para cross-cutting**: Mantener handlers limpios
-5. **Aceptar inconsistencia temporal**: Es el precio de la escalabilidad
+1. **Outbox before events**: always store events before publishing them
+2. **Idempotency starts with the client**: the client generates the request ID
+3. **Local transactions**: avoid distributed transactions
+4. **Behaviors for cross-cutting concerns**: keep handlers clean
+5. **Accept temporary inconsistency**: it's the price of scalability
 
 ---
 
-## 📖 Referencias
+## 📖 References
 
 - [Transactional Outbox - Microservices.io](https://microservices.io/patterns/data/transactional-outbox.html)
-- [Idempotent Consumer - Enterprise Integration Patterns](https://www.enterpriseintegrationpatterns.com/patterns/messaging/IdempotentReceiver.html)
+- [Idempotent Receiver - Enterprise Integration Patterns](https://www.enterpriseintegrationpatterns.com/patterns/messaging/IdempotentReceiver.html)
 - [Unit of Work - Martin Fowler](https://martinfowler.com/eaaCatalog/unitOfWork.html)
-- [Chain of Responsibility - Gang of Four](https://refactoring.guru/design-patterns/chain-of-responsibility)
-- [Eventual Consistency - Werner Vogels](https://www.allthingsdistributed.com/2008/12/eventually_consistent.html)
+- [Chain of Responsibility](https://refactoring.guru/design-patterns/chain-of-responsibility)
+- [Eventually Consistent - Werner Vogels](https://www.allthingsdistributed.com/2008/12/eventually_consistent.html)

@@ -1,25 +1,25 @@
-# uSLearn · Microservicios con .NET Aspire
+# uSLearn · Microservices with .NET Aspire
 
 ![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)
 ![Aspire](https://img.shields.io/badge/.NET%20Aspire-13.1-512BD4)
-![Status](https://img.shields.io/badge/estado-en%20progreso-yellow)
-[![License: MIT](https://img.shields.io/badge/licencia-MIT-green)](LICENSE)
+![Status](https://img.shields.io/badge/status-in%20progress-yellow)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Aplicación de referencia basada en **microservicios** con **.NET 10** y **.NET Aspire**, construida como laboratorio práctico para explorar patrones modernos de arquitectura distribuida: DDD, CQRS, eventos de dominio e integración, idempotencia y observabilidad.
+A **microservices** reference application built with **.NET 10** and **.NET Aspire**, used as a hands-on lab to explore modern distributed architecture patterns: DDD, CQRS, domain and integration events, idempotency and observability.
 
 > [!NOTE]
-> **Basado en [dotnet/eShop](https://github.com/dotnet/eShop).**
-> La arquitectura y buena parte de los building blocks (EventBus, EventBusRabbitMQ, IntegrationEventLogEF, SeedWork de dominio, `IdentifiedCommand`, `TransactionBehavior`, `ResilientTransaction`…) siguen los patrones de la aplicación de referencia oficial de Microsoft. Este repositorio los **reconstruye paso a paso** sobre un dominio propio, documentando el porqué de cada decisión y añadiendo variaciones (p. ej. idempotencia en los event handlers).
+> **Based on [dotnet/eShop](https://github.com/dotnet/eShop).**
+> The architecture and many of the building blocks (EventBus, EventBusRabbitMQ, IntegrationEventLogEF, domain SeedWork, `IdentifiedCommand`, `TransactionBehavior`, `ResilientTransaction`…) follow the patterns of Microsoft's official reference application. This repository **rebuilds them step by step** on its own domain, documenting the reasoning behind each decision and adding variations (e.g. idempotent event handlers, resilient transactions in integration handlers).
 
 ---
 
 ## 🧭 Overview
 
-El proyecto evoluciona en **etapas incrementales**, cada una con su propia documentación en [`/docs`](docs). El dominio de ejemplo es una plataforma multi-tenant:
+The project evolves in **incremental stages**, each with its own documentation in [`/docs`](docs). The sample domain is a multi-tenant platform:
 
-- **Accounts API** — gestiona organizaciones (aggregate `Organization`) y publica `OrganizationCreatedIntegrationEvent`.
-- **Identity API** — consume ese evento y aprovisiona el tenant y su usuario administrador de forma idempotente.
-- **Web** — frontend Blazor (por ahora la plantilla base de Aspire; se desarrollará en Stage.06).
+- **Accounts API** — manages organizations (`Organization` aggregate) and publishes `OrganizationCreatedIntegrationEvent`.
+- **Identity API** — consumes that event and provisions the tenant and its admin user, idempotently and in a single resilient transaction.
+- **Web** — Blazor frontend (currently the Aspire starter template; it will be built out in Stage.06).
 
 ```mermaid
 flowchart LR
@@ -31,112 +31,112 @@ flowchart LR
     Identity -->|EF Core| IdentityDb[(SQL Server<br/>identitydb)]
 ```
 
-El objetivo es servir como:
+It is meant to be:
 
-- 📚 guía educativa
-- 🧪 sandbox técnico
-- 🧱 base reutilizable para proyectos reales
+- 📚 a learning guide
+- 🧪 a technical sandbox
+- 🧱 a reusable foundation for real projects
 
 ---
 
-## 🏗️ Stack tecnológico
+## 🏗️ Tech Stack
 
-| Área | Tecnologías |
+| Area | Technologies |
 | --- | --- |
-| Runtime | .NET 10, ASP.NET Core Minimal APIs, API Versioning, OpenAPI |
-| Orquestación | .NET Aspire 13.1 (AppHost, ServiceDefaults, service discovery, health checks, dashboard) |
-| Dominio / aplicación | DDD (lightweight), CQRS con MediatR, pipeline behaviors (logging, validación, transacciones), FluentValidation |
-| Persistencia | Entity Framework Core 10 + SQL Server, Redis |
-| Mensajería | RabbitMQ, Outbox (Integration Event Log), consumidores idempotentes |
-| Observabilidad | Logging estructurado, OpenTelemetry (trazas y métricas propias, propagación de contexto por RabbitMQ) |
-| Frontend *(planificado)* | Blazor Web App + Radzen |
-| Seguridad *(planificado)* | Duende IdentityServer |
+| Runtime | .NET 10, ASP.NET Core minimal APIs, API versioning, OpenAPI + Scalar |
+| Orchestration | .NET Aspire 13.1 (AppHost, ServiceDefaults, service discovery, health checks, dashboard) |
+| Domain / application | DDD (lightweight), CQRS with MediatR, pipeline behaviors (logging, validation, transactions), FluentValidation |
+| Persistence | Entity Framework Core 10 + SQL Server (with retry on transient failures), Redis |
+| Messaging | RabbitMQ, outbox (integration event log), idempotent consumers |
+| Observability | Structured logging, OpenTelemetry (custom traces and metrics, trace context propagated through RabbitMQ) |
+| Frontend *(planned)* | Blazor Web App + Radzen |
+| Security *(planned)* | Duende IdentityServer |
 
 ---
 
-## 🎯 Objetivos arquitectónicos
+## 🎯 Architectural Goals
 
-- Separación clara entre bounded contexts
-- Independencia y autonomía de servicios
-- Comunicación desacoplada mediante eventos
-- Observabilidad desde el inicio
-- Evolución incremental, sin *big bang architecture*
+- Clear separation between bounded contexts
+- Independent, autonomous services
+- Decoupled communication through events
+- Observability from day one
+- Incremental evolution, no *big bang architecture*
 
 ---
 
-## 🧩 Estructura de la solución
+## 🧩 Solution Structure
 
 ```
 src/
- ├── uSLearn.AppHost/              → Orquestación .NET Aspire (SQL Server, RabbitMQ, Redis, servicios)
- ├── uSLearn.ServiceDefaults/      → Configuración compartida (OpenTelemetry, health checks, OpenAPI, resiliencia)
+ ├── uSLearn.AppHost/              → .NET Aspire orchestration (SQL Server, RabbitMQ, Redis, services)
+ ├── uSLearn.ServiceDefaults/      → Shared configuration (OpenTelemetry, health checks, OpenAPI, resilience)
  │
- ├── uSLearn.Accounts.API/         → Microservicio de cuentas/organizaciones (DDD + CQRS)
- ├── uSLearn.Identity.API/         → Microservicio de identidad (consumidor de eventos)
- ├── uSLearn.Web/                  → Frontend Blazor
+ ├── uSLearn.Accounts.API/         → Accounts/organizations microservice (DDD + CQRS)
+ ├── uSLearn.Identity.API/         → Identity microservice (event consumer)
+ ├── uSLearn.Web/                  → Blazor frontend
  │
  ├── Core.Domain/                  → SeedWork: Entity, ValueObject, IAggregateRoot, IUnitOfWork…
- ├── Core.Application/             → Behaviors de MediatR (Logging, Validation) y abstracciones
- ├── Core.Infrastructure/          → Utilidades transversales (migraciones, contexto HTTP, tracing)
- ├── Core.EventBus/                → Abstracciones del bus de eventos de integración
- ├── Core.EventBusRabbitMQ/        → Implementación del bus con RabbitMQ
- └── Core.IntegrationEventLogEF/   → Outbox, idempotencia de eventos y ResilientTransaction
-docs/                              → Documentación detallada de cada etapa
+ ├── Core.Application/             → MediatR behaviors (logging, validation), telemetry and abstractions
+ ├── Core.Infrastructure/          → Cross-cutting utilities (migrations, HTTP context, tracing)
+ ├── Core.EventBus/                → Integration event bus abstractions
+ ├── Core.EventBusRabbitMQ/        → RabbitMQ implementation of the bus
+ └── Core.IntegrationEventLogEF/   → Outbox, event idempotency and ResilientTransaction
+docs/                              → Detailed documentation for each stage
 ```
 
 ---
 
-## 🪜 Roadmap por etapas
+## 🪜 Roadmap
 
-| Stage | Descripción | Estado |
+| Stage | Description | Status |
 | --- | --- | --- |
-| **Stage.01** | Creación del proyecto base | ✅ Completado |
-| **Stage.02** | Eventos de dominio | ✅ Completado |
-| **Stage.03** | **Eventos de integración + idempotencia** | ✅ Completado |
-| ↳ Stage.03-1 | Eventos de integración con RabbitMQ | ✅ Completado |
-| ↳ Stage.03-2 | Idempotencia y transaccionalidad (comandos) | ✅ Completado |
-| ↳ Stage.03-3 | Idempotencia en event handlers | ✅ Completado |
-| ↳ Stage.03-4 | Transacciones resilientes | ✅ Completado |
-| **Stage.04** | **Observabilidad y validaciones** | ✅ Completado |
-| ↳ Stage.04-1 | Logging enriquecido | ✅ Completado |
-| ↳ Stage.04-2 | Validaciones con FluentValidation | ✅ Completado |
-| ↳ Stage.04-3 | Telemetría con OpenTelemetry | ✅ Completado |
-| **Stage.05** | Identity con Duende IdentityServer | 📋 Planificado |
-| **Stage.06** | Web App Blazor + Radzen | 📋 Planificado |
-| **Stage.07** | Webhooks y extensibilidad | 📋 Planificado |
+| **Stage.01** | Base project creation | ✅ Done |
+| **Stage.02** | Domain events | ✅ Done |
+| **Stage.03** | **Integration events + idempotency** | ✅ Done |
+| ↳ Stage.03-1 | Integration events with RabbitMQ | ✅ Done |
+| ↳ Stage.03-2 | Idempotency and transactionality (commands) | ✅ Done |
+| ↳ Stage.03-3 | Idempotent event handlers | ✅ Done |
+| ↳ Stage.03-4 | Resilient transactions | ✅ Done |
+| **Stage.04** | **Observability and validation** | ✅ Done |
+| ↳ Stage.04-1 | Enriched logging | ✅ Done |
+| ↳ Stage.04-2 | Validation with FluentValidation | ✅ Done |
+| ↳ Stage.04-3 | Telemetry with OpenTelemetry | ✅ Done |
+| **Stage.05** | Identity with Duende IdentityServer | 📋 Planned |
+| **Stage.06** | Blazor web app + Radzen | 📋 Planned |
+| **Stage.07** | Webhooks and extensibility | 📋 Planned |
 
 ---
 
-## 📖 Documentación
+## 📖 Documentation
 
-Cada etapa está documentada en [`/docs`](docs) con: objetivo, decisiones arquitectónicas, estructura añadida, código relevante y consideraciones futuras.
+Each stage is documented in [`/docs`](docs): goal, architectural decisions, added structure, relevant code and future considerations.
 
-El código de cada etapa está en su propia rama (`stages/stage-01`, `stages/stage-02`, …, `stages/stage-04.3`), y cada rama incluye todas las anteriores. La documentación se mantiene actualizada en `dev`.
+The code for each stage lives in its own branch (`stages/stage-01`, `stages/stage-02`, …, `stages/stage-04.3`), and every branch includes all the previous ones. The documentation is kept up to date in `main`.
 
-| Documento | Contenido |
+| Document | Content |
 | --- | --- |
-| [Stage.01 – Project creation](docs/Stage.01-project%20creation.md) | Setup inicial con .NET Aspire |
-| [Stage.02 – Domain events](docs/Stage.02-domain%20events.md) | Eventos de dominio con MediatR |
-| [Stage.03-1 – Eventos de integración](docs/Stage.03-1-Eventos%20de%20Integracion.md) | Eventos de integración con RabbitMQ |
-| [Stage.03-2 – Idempotencia](docs/Stage.03-2-Idempotencia.md) | Idempotencia en comandos |
-| [Stage.03-3 – Idempotency handler](docs/Stage.03-3-Idempotency-Handler.md) | Idempotencia en event handlers |
-| [Stage.03-4 – Transacciones resilientes](docs/Stage.03-4-Transacciones-Resilientes.md) | Atomicidad y reintentos en handlers de integración |
-| [Stage.03 – Patrones arquitectónicos](docs/Stage.03-Patrones-Arquitectonicos.md) | Guía detallada de los patrones aplicados |
-| [Stage.04-1 – Logging](docs/Stage.04-1-Logging.md) | Logging estructurado y enriquecido |
-| [Stage.04-2 – Validations](docs/Stage.04-2-Validations.md) | FluentValidation y manejo de excepciones |
-| [Stage.04-3 – Telemetry](docs/Stage.04-3-Telemetry.md) | Trazas, métricas y propagación de contexto con OpenTelemetry |
+| [Stage.01 – Project creation](docs/Stage.01-Project-Creation.md) | Initial setup with .NET Aspire |
+| [Stage.02 – Domain events](docs/Stage.02-Domain-Events.md) | Domain events with MediatR |
+| [Stage.03-1 – Integration events](docs/Stage.03-1-Integration-Events.md) | Integration events with RabbitMQ |
+| [Stage.03-2 – Idempotency](docs/Stage.03-2-Idempotency.md) | Command idempotency and the outbox |
+| [Stage.03-3 – Idempotent event handlers](docs/Stage.03-3-Idempotency-Handler.md) | Idempotency in event handlers |
+| [Stage.03-4 – Resilient transactions](docs/Stage.03-4-Resilient-Transactions.md) | Atomicity and retries in integration handlers |
+| [Stage.03 – Architectural patterns](docs/Stage.03-Architectural-Patterns.md) | In-depth guide to the patterns applied |
+| [Stage.04-1 – Logging](docs/Stage.04-1-Logging.md) | Structured, enriched logging |
+| [Stage.04-2 – Validation](docs/Stage.04-2-Validations.md) | FluentValidation and exception handling |
+| [Stage.04-3 – Telemetry](docs/Stage.04-3-Telemetry.md) | Traces, metrics and context propagation with OpenTelemetry |
 
 ---
 
-## 🚀 Cómo ejecutar el proyecto
+## 🚀 Running the Project
 
-### Requisitos
+### Requirements
 
-- [.NET SDK 10](https://dotnet.microsoft.com/download)
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (o Podman) — **necesario**: Aspire levanta SQL Server, RabbitMQ y Redis como contenedores
-- IDE: Visual Studio 2022+, Rider o VS Code con C# Dev Kit
+- [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Podman) — **required**: Aspire runs SQL Server, RabbitMQ and Redis as containers
+- IDE: Visual Studio 2022+, Rider or VS Code with C# Dev Kit
 
-### Ejecutar con Aspire
+### Run with Aspire
 
 ```bash
 git clone https://github.com/miquelalcaraz/Labs.Aspire.uSLearn.git
@@ -144,46 +144,67 @@ cd Labs.Aspire.uSLearn
 dotnet run --project src/uSLearn.AppHost
 ```
 
-El AppHost arranca:
+The AppHost starts:
 
-- Contenedores de **SQL Server**, **RabbitMQ** y **Redis**
-- Los servicios `Accounts.API`, `Identity.API` y `Web` (las migraciones de EF Core se aplican al iniciar)
-- El **dashboard de Aspire** (la URL aparece en la consola) con logs, trazas y métricas
+- **SQL Server**, **RabbitMQ** and **Redis** containers
+- The `Accounts.API`, `Identity.API` and `Web` services (EF Core migrations are applied at startup)
+- The **Aspire dashboard** (its URL is printed in the console) with logs, traces and metrics
 
-Para probar la API puedes usar el fichero [`Aspire.uSLearn.ApiService.http`](src/uSLearn.Accounts.API/Aspire.uSLearn.ApiService.http).
+### Try it out
+
+**1. Open the Aspire dashboard** and check that every resource is running. Click the `apiservice` URL to open the Accounts API.
+
+![Aspire dashboard with every resource running](img/aspire-dashboard-resources.png)
+
+**2. Create an organization** from the Scalar API reference (`/scalar/v1`): `PUT /api/accounts` with an `x-requestid` header. Sending the same request again with the same `x-requestid` doesn't create a duplicate.
+
+![Creating an organization with PUT /api/accounts in Scalar](img/scalar-put-create-organization.png)
+
+**3. List the organizations** with `GET /api/accounts`…
+
+![Listing organizations with GET /api/accounts](img/scalar-get-organizations.png)
+
+**4. …or get one by id** with `GET /api/accounts/{id}`.
+
+![Getting an organization with GET /api/accounts/{id}](img/scalar-get-organization-by-id.png)
+
+Creating an organization publishes `OrganizationCreatedIntegrationEvent`; `Identity.API` consumes it and creates the tenant and its admin user. In the dashboard's **Traces** view, the whole flow appears as a single trace, from the HTTP request to the consumer in `identity`.
+
+The same requests are available in [`Aspire.uSLearn.ApiService.http`](src/uSLearn.Accounts.API/Aspire.uSLearn.ApiService.http) for Visual Studio / VS Code / Rider.
 
 ---
 
-## 🧠 Conceptos clave
+## 🧠 Key Concepts
 
-- Domain Events vs Integration Events
-- Consistencia eventual y patrón Outbox
-- Procesamiento idempotente (comandos y consumidores)
-- CQRS con MediatR y pipeline behaviors
-- Integración basada en contratos (eventos)
-- Aislamiento de bounded contexts
-
----
-
-## ⚠️ Estado del proyecto
-
-Proyecto en construcción incremental. No pretende ser una arquitectura definitiva, sino una **referencia evolutiva** que muestra trade-offs reales. La configuración (credenciales de contenedores, etc.) está pensada exclusivamente para desarrollo local.
+- Domain events vs integration events
+- Eventual consistency and the outbox pattern
+- Idempotent processing (commands and consumers)
+- Resilient transactions with EF Core execution strategies
+- CQRS with MediatR and pipeline behaviors
+- Contract-based integration (events)
+- Bounded context isolation
 
 ---
 
-## 🙏 Créditos
+## ⚠️ Project Status
 
-- [dotnet/eShop](https://github.com/dotnet/eShop) — aplicación de referencia de Microsoft en la que se basa la arquitectura y varios componentes de este proyecto (licencia MIT).
+The project is under incremental construction. It isn't meant to be a final architecture but an **evolving reference** that shows real trade-offs. The configuration (container credentials, etc.) is intended for local development only.
+
+---
+
+## 🙏 Credits
+
+- [dotnet/eShop](https://github.com/dotnet/eShop) — Microsoft's reference application on which this project's architecture and several components are based (MIT license).
 - [.NET Aspire](https://learn.microsoft.com/dotnet/aspire/)
 
-## 📄 Licencia
+## 📄 License
 
-Distribuido bajo licencia [MIT](LICENSE). Las partes derivadas de [dotnet/eShop](https://github.com/dotnet/eShop) mantienen el copyright de la .NET Foundation y sus contribuidores, también bajo MIT.
+Distributed under the [MIT](LICENSE) license. The parts derived from [dotnet/eShop](https://github.com/dotnet/eShop) keep the copyright of the .NET Foundation and Contributors, also under MIT.
 
-## 🤝 Contribuciones
+## 🤝 Contributing
 
-Repositorio pensado como referencia personal y educativa; cualquier sugerencia o mejora es bienvenida vía *issues* o *pull requests*.
+This repository is a personal, educational reference, but suggestions and improvements are welcome through issues or pull requests.
 
-## 👤 Autor
+## 👤 Author
 
 **Miquel Alcaraz** — [GitHub](https://github.com/miquelalcaraz)

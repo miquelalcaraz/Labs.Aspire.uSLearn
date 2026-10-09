@@ -1,87 +1,87 @@
-# Stage.02 - Implementación de Eventos de Dominio
+# Stage.02 - Domain Events
 
-## 🎯 Objetivo de la Etapa
+## 🎯 Stage Goal
 
-Implementar **Domain Events** dentro del microservicio de cuentas (Accounts) siguiendo los principios de **Domain-Driven Design (DDD)**, estableciendo las bases para una arquitectura rica en dominio con:
+Implement **domain events** inside the accounts microservice (Accounts) following **Domain-Driven Design (DDD)** principles, laying the groundwork for a rich-domain architecture with:
 
-- Un agregado `Organization` con lógica de negocio encapsulada
-- Eventos de dominio que representan cambios significativos en el estado del dominio
-- Patrón MediatR para despachar eventos dentro del mismo bounded context
-- Separación clara entre capas (Domain, Application, Infrastructure, API)
-- Entity Framework Core con implementación del patrón Repository y Unit of Work
-- CQRS básico con separación entre Commands y Queries
+- An `Organization` aggregate with encapsulated business logic
+- Domain events that represent meaningful state changes in the domain
+- MediatR to dispatch events within the same bounded context
+- Clear separation between layers (Domain, Application, Infrastructure, API)
+- Entity Framework Core implementing the Repository and Unit of Work patterns
+- Basic CQRS, separating commands from queries
 
 ---
 
-## 🏗️ Decisiones Arquitectónicas
+## 🏗️ Architectural Decisions
 
-### ¿Por qué Domain Events?
+### Why domain events?
 
-Los **Domain Events** son fundamentales en una arquitectura DDD porque:
+**Domain events** are central to a DDD architecture because they:
 
-- **Desacoplan** la lógica de negocio de los efectos secundarios
-- Permiten **extensibilidad** sin modificar el agregado
-- Hacen **explícitos** los cambios importantes en el dominio
-- Facilitan la **auditoría** y el tracking de cambios
-- Son la base para eventos de integración (Stage.03)
+- **Decouple** business logic from side effects
+- Enable **extensibility** without touching the aggregate
+- Make important domain changes **explicit**
+- Help with **auditing** and change tracking
+- Are the foundation for integration events (Stage.03)
 
-### Diferencia entre Domain Events e Integration Events
+### Domain events vs integration events
 
-| Aspecto | Domain Events | Integration Events |
-|---------|--------------|-------------------|
-| **Alcance** | Mismo bounded context | Entre bounded contexts |
-| **Transacción** | Dentro de la misma transacción DB | Transacciones distribuidas |
-| **Infraestructura** | MediatR (in-process) | Message broker (RabbitMQ, Azure Service Bus) |
-| **Propósito** | Mantener consistencia interna | Comunicación entre servicios |
+| Aspect | Domain events | Integration events |
+|--------|--------------|-------------------|
+| **Scope** | Same bounded context | Across bounded contexts |
+| **Transaction** | Same DB transaction | Distributed (eventual consistency) |
+| **Infrastructure** | MediatR (in-process) | Message broker (RabbitMQ, Azure Service Bus) |
+| **Purpose** | Keep internal consistency | Communication between services |
 
-En esta etapa implementamos **Domain Events**. Los **Integration Events** se añadirán en Stage.03.
+This stage implements **domain events**. **Integration events** arrive in Stage.03.
 
-### Estructura del Microservicio Accounts
+### Accounts microservice structure
 
-Se ha optado por una **arquitectura en capas** inspirada en DDD:
+A **layered architecture** inspired by DDD:
 
 ```
 uSLearn.Accounts.API/
-├── Domain/                          → Lógica de negocio pura
-│   ├── SeedWork/                    → Building blocks DDD
-│   ├── OrganizationAggregate/       → Agregado Organization
-│   ├── Events/                      → Domain Events
-│   └── Exceptions/                  → Excepciones de dominio
-├── Application/                     → Casos de uso (Commands/Queries)
+├── Domain/                          → Pure business logic
+│   ├── SeedWork/                    → DDD building blocks
+│   ├── OrganizationAggregate/       → Organization aggregate
+│   ├── Events/                      → Domain events
+│   └── Exceptions/                  → Domain exceptions
+├── Application/                     → Use cases (commands/queries)
 │   ├── Commands/                    → Command handlers (CQRS)
 │   ├── Queries/                     → Query handlers (CQRS)
-│   └── Behaviors/                   → Behaviors de MediatR
-├── Infrastructure/                  → Persistencia y detalles técnicos
+│   └── Behaviors/                   → MediatR behaviors
+├── Infrastructure/                  → Persistence and technical details
 │   ├── EntityConfigurations/        → EF Core configurations
-│   ├── Repositories/                → Implementaciones de repositorios
-│   ├── Migrations/                  → Migraciones de EF Core
-│   ├── Seed/                        → Datos iniciales
-│   └── Extensions/                  → Extensiones y utilidades
-├── Api/                             → Endpoints HTTP
-└── Extensions/                      → Configuración de servicios
+│   ├── Repositories/                → Repository implementations
+│   ├── Migrations/                  → EF Core migrations
+│   ├── Seed/                        → Seed data
+│   └── Extensions/                  → Extensions and utilities
+├── Api/                             → HTTP endpoints
+└── Extensions/                      → Service registration
 ```
 
-### Principios DDD Aplicados
+### DDD principles applied
 
-1. **Aggregate Root**: `Organization` es el agregado raíz que controla el acceso a `OrganizationContact`
-2. **Value Objects**: `Address` representa un concepto de dominio sin identidad
-3. **Domain Events**: `OrganizationCreatedDomainEvent` notifica la creación de organizaciones
-4. **Ubiquitous Language**: Tipos como `OrganizationType`, `TaxNumberType` expresan el lenguaje del negocio
-5. **Invariantes**: La lógica de validación está en el agregado (ej: `TaxNumberType` no puede ser `Unknown`)
+1. **Aggregate root**: `Organization` is the aggregate root that controls access to `OrganizationContact`
+2. **Value objects**: `Address` represents a domain concept with no identity
+3. **Domain events**: `OrganizationCreatedDomainEvent` signals that an organization was created
+4. **Ubiquitous language**: types such as `OrganizationType` and `TaxNumberType` express the business language
+5. **Invariants**: validation lives in the aggregate (e.g. `TaxNumberType` cannot be `Unknown`)
 
 ---
 
-## 📦 Componentes Implementados
+## 📦 Implemented Components
 
-### 1. **Domain Layer (Capa de Dominio)**
+### 1. **Domain Layer**
 
-#### Entity Base Class
+#### Entity base class
 
-La clase base `Entity` proporciona:
-- Identidad mediante `Guid Id`
-- Gestión de eventos de dominio mediante una colección interna
-- Métodos para añadir, eliminar y limpiar eventos
-- Implementación de igualdad basada en identidad
+The `Entity` base class provides:
+- Identity through a `Guid Id`
+- Domain event management through an internal collection
+- Methods to add, remove and clear events
+- Identity-based equality
 
 ```csharp
 public abstract class Entity
@@ -102,14 +102,14 @@ public abstract class Entity
 }
 ```
 
-**Características clave:**
-- Los eventos se almacenan como `INotification` (interfaz de MediatR)
-- Colección inmutable expuesta mediante `IReadOnlyCollection`
-- Los eventos se despachan en `SaveChanges` antes del commit
+**Key points:**
+- Events are stored as `INotification` (MediatR interface)
+- The collection is exposed read-only through `IReadOnlyCollection`
+- Events are dispatched in `SaveChanges`, before the commit
 
-#### Organization Aggregate Root
+#### Organization aggregate root
 
-El agregado `Organization` implementa:
+The `Organization` aggregate:
 
 ```csharp
 public class Organization : Entity, IAggregateRoot
@@ -131,7 +131,7 @@ public class Organization : Entity, IAggregateRoot
         {
             TenantId = Guid.NewGuid(),
             Name = name.Trim(),
-            // ... inicialización
+            // ... initialization
         };
         
         organization.AddOrganizationCreatedDomainEvent();
@@ -147,12 +147,12 @@ public class Organization : Entity, IAggregateRoot
 }
 ```
 
-**Decisiones de diseño:**
-- ✅ Constructor privado: solo se puede crear mediante `Create()` (factory method)
-- ✅ Setters privados: inmutabilidad después de creación
-- ✅ Validación en el factory: `TaxNumberType` no puede ser `Unknown`
-- ✅ Evento de dominio añadido automáticamente en la creación
-- ✅ Colección privada de contactos con propiedad read-only pública
+**Design decisions:**
+- ✅ Private constructor: instances are only created through `Create()` (factory method)
+- ✅ Private setters: immutable after creation
+- ✅ Validation in the factory: `TaxNumberType` cannot be `Unknown`
+- ✅ The domain event is added automatically on creation
+- ✅ Private contacts collection with a read-only public property
 
 #### OrganizationCreatedDomainEvent
 
@@ -166,14 +166,14 @@ public record OrganizationCreatedDomainEvent(
     string CountryCode) : INotification;
 ```
 
-**Características:**
-- Implementado como `record` (inmutabilidad por defecto en C# 10+)
-- Implementa `INotification` de MediatR
-- Contiene solo datos relevantes del evento (no la entidad completa)
+**Characteristics:**
+- Implemented as a `record` (immutable by default)
+- Implements MediatR's `INotification`
+- Carries only the data relevant to the event (not the whole entity)
 
-#### Value Objects
+#### Value objects
 
-**Address** encapsula dirección como concepto sin identidad:
+**Address** encapsulates an address as a concept without identity:
 
 ```csharp
 public class Address : ValueObject
@@ -199,11 +199,11 @@ public class Address : ValueObject
 
 ---
 
-### 2. **Application Layer (Capa de Aplicación)**
+### 2. **Application Layer**
 
-#### Commands (CQRS - Write Side)
+#### Commands (CQRS write side)
 
-**CreateOrganizationCommand**:
+**CreateOrganizationCommand** (simplified; the real one is a `[DataContract]` record that also carries `CountryCode`, `Language` and `LanguageCode`):
 ```csharp
 public record CreateOrganizationCommand(
     string TaxIdNumber,
@@ -231,25 +231,25 @@ public class CreateOrganizationCommandHandler : IRequestHandler<CreateOrganizati
         
         _organizationRepository.Add(organization);
         
-        // El evento se despachará automáticamente en SaveEntitiesAsync
+        // The event is dispatched automatically in SaveEntitiesAsync
         return await _organizationRepository.UnitOfWork.SaveEntitiesAsync(cancellationToken);
     }
 }
 ```
 
-**Flujo de ejecución:**
-1. API recibe la petición HTTP
-2. Se crea un `CreateOrganizationCommand`
-3. MediatR enruta al `CommandHandler`
-4. El handler crea el agregado `Organization`
-5. El agregado añade `OrganizationCreatedDomainEvent` internamente
-6. El repositorio guarda la entidad
-7. En `SaveChanges`, los eventos de dominio se despachan **antes del commit**
-8. Los handlers de eventos se ejecutan en la misma transacción
+**Execution flow:**
+1. The API receives the HTTP request
+2. A `CreateOrganizationCommand` is created
+3. MediatR routes it to the command handler
+4. The handler creates the `Organization` aggregate
+5. The aggregate adds `OrganizationCreatedDomainEvent` internally
+6. The repository adds the entity
+7. In `SaveEntitiesAsync`, domain events are dispatched **before the commit**
+8. Event handlers run within the same unit of work
 
-#### Queries (CQRS - Read Side)
+#### Queries (CQRS read side)
 
-**IOrganizationQueries** con implementación de solo lectura sobre EF Core (`OrganizationQueries`):
+**IOrganizationQueries**, implemented read-only on top of EF Core (`OrganizationQueries`):
 
 ```csharp
 public interface IOrganizationQueries
@@ -259,13 +259,13 @@ public interface IOrganizationQueries
 }
 ```
 
-**Separación CQRS:**
-- **Commands** modifican estado → pasan por el agregado → repositorio
-- **Queries** solo leen → pueden acceder directamente a la DB (optimización)
+**CQRS separation:**
+- **Commands** change state → go through the aggregate → repository
+- **Queries** only read → can access the database directly (optimization)
 
-#### MediatR Pipeline Behaviors
+#### MediatR pipeline behaviors
 
-**LoggingBehavior** para logging cross-cutting:
+**LoggingBehavior** for cross-cutting logging:
 
 ```csharp
 public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
@@ -287,9 +287,9 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
 
 ---
 
-### 3. **Infrastructure Layer (Capa de Infraestructura)**
+### 3. **Infrastructure Layer**
 
-#### AccountContext (DbContext con Domain Events)
+#### AccountContext (DbContext with domain events)
 
 ```csharp
 public class AccountContext : DbContext, IUnitOfWork
@@ -298,10 +298,10 @@ public class AccountContext : DbContext, IUnitOfWork
 
     public async Task<bool> SaveEntitiesAsync(CancellationToken cancellationToken = default)
     {
-        // 1. Despachar eventos de dominio ANTES del commit
+        // 1. Dispatch domain events BEFORE the commit
         await _mediator.DispatchDomainEventsAsync(this);
 
-        // 2. Guardar cambios en la base de datos
+        // 2. Save changes to the database
         await base.SaveChangesAsync(cancellationToken);
 
         return true;
@@ -309,13 +309,13 @@ public class AccountContext : DbContext, IUnitOfWork
 }
 ```
 
-**Decisión arquitectónica crítica:**
-Los eventos se despachan **ANTES** de `SaveChangesAsync()` para que:
-- Los handlers de eventos se ejecuten en la **misma transacción**
-- Si un handler falla, se hace rollback de todo
-- Consistencia transaccional garantizada
+**Key architectural decision:**
+Events are dispatched **BEFORE** `SaveChangesAsync()` so that:
+- Event handlers' changes made through the same `DbContext` are saved together
+- If a handler fails, nothing is saved
+- Transactional consistency is guaranteed
 
-#### MediatorExtension (Despacho de Eventos)
+#### MediatorExtension (event dispatching)
 
 ```csharp
 public static async Task DispatchDomainEventsAsync(this IMediator mediator, AccountContext ctx)
@@ -336,13 +336,13 @@ public static async Task DispatchDomainEventsAsync(this IMediator mediator, Acco
 }
 ```
 
-**Proceso:**
-1. Buscar todas las entidades con eventos de dominio
-2. Extraer todos los eventos
-3. Limpiar los eventos de las entidades
-4. Publicar cada evento mediante MediatR (`Publish` permite múltiples handlers)
+**Process:**
+1. Find every entity with domain events
+2. Extract all events
+3. Clear the events from the entities
+4. Publish each event through MediatR (`Publish` supports multiple handlers)
 
-#### Repository Pattern
+#### Repository pattern
 
 **IOrganizationRepository**:
 ```csharp
@@ -375,20 +375,20 @@ public interface IUnitOfWork : IDisposable
 }
 ```
 
-#### Entity Framework Migrations
+#### Entity Framework migrations
 
-**Migración inicial creada:**
+**Initial migration:**
 ```bash
 dotnet ef migrations add Initial -c AccountContext
 ```
 
-Resultado: esquema `account` con tablas:
+Result: `account` schema with the tables:
 - `account.Organization`
 - `account.OrganizationContact`
 
-#### Database Seeding
+#### Database seeding
 
-**AccountContextSeed** inicializa datos de prueba:
+**AccountContextSeed** seeds test data:
 ```csharp
 public class AccountContextSeed : IDbSeeder<AccountContext>
 {
@@ -396,7 +396,7 @@ public class AccountContextSeed : IDbSeeder<AccountContext>
     {
         if (!context.Organizations.Any())
         {
-            // Crear organizaciones de ejemplo
+            // Create sample organizations
         }
     }
 }
@@ -404,9 +404,9 @@ public class AccountContextSeed : IDbSeeder<AccountContext>
 
 ---
 
-### 4. **API Layer (Capa de API)**
+### 4. **API Layer**
 
-#### Minimal APIs con Versionado
+#### Versioned minimal APIs
 
 **AccountsApi.cs**:
 ```csharp
@@ -422,14 +422,14 @@ public static RouteGroupBuilder MapAccountsApiV1(this IEndpointRouteBuilder app)
 }
 ```
 
-**Endpoints implementados:**
-- `PUT /api/accounts` → Crear organización (Command)
-- `GET /api/accounts/{id}` → Obtener organización por ID (Query)
-- `GET /api/accounts` → Listar todas las organizaciones (Query)
+**Endpoints:**
+- `PUT /api/accounts` → Create organization (command)
+- `GET /api/accounts/{id}` → Get organization by ID (query)
+- `GET /api/accounts` → List all organizations (query)
 
-#### Dependency Injection
+#### Dependency injection
 
-**AccountsServices** encapsula dependencias:
+**AccountsServices** groups the dependencies:
 ```csharp
 public class AccountsServices
 {
@@ -444,7 +444,7 @@ public class AccountsServices
 }
 ```
 
-**Uso en endpoints:**
+**Usage in endpoints:**
 ```csharp
 public static async Task<Results<Ok, BadRequest<string>>> CreateOrganizationAsync(
     CreateOrganizationRequest request,
@@ -459,14 +459,14 @@ public static async Task<Results<Ok, BadRequest<string>>> CreateOrganizationAsyn
 
 ---
 
-## 🔧 Configuración y Registro de Servicios
+## 🔧 Service Configuration and Registration
 
 ### Extensions.cs
 
 ```csharp
 public static void AddApplicationServices(this IHostApplicationBuilder builder)
 {
-    // DbContext con SQL Server
+    // DbContext with SQL Server
     builder.Services.AddDbContext<AccountContext>(options =>
     {
         options.UseSqlServer(connectionString, sqlOptions =>
@@ -475,17 +475,17 @@ public static void AddApplicationServices(this IHostApplicationBuilder builder)
         });
     });
 
-    // Migraciones automáticas en desarrollo
+    // Automatic migrations at startup
     builder.Services.AddMigration<AccountContext, AccountContextSeed>();
 
-    // MediatR con behaviors
+    // MediatR with behaviors
     builder.Services.AddMediatR(cfg =>
     {
         cfg.RegisterServicesFromAssemblyContaining(typeof(Program));
         cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
     });
 
-    // Repositorios y queries
+    // Repositories and queries
     builder.Services.AddScoped<IOrganizationQueries, OrganizationQueries>();
     builder.Services.AddScoped<IOrganizationRepository, OrganizationRepository>();
 }
@@ -496,19 +496,19 @@ public static void AddApplicationServices(this IHostApplicationBuilder builder)
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 
-// Aspire Service Defaults
+// Aspire service defaults
 builder.AddServiceDefaults();
 
-// Servicios de la aplicación
+// Application services
 builder.AddApplicationServices();
 
-// API Versioning
+// API versioning
 var withApiVersioning = builder.Services.AddApiVersioning();
 builder.AddDefaultOpenApi(withApiVersioning);
 
 var app = builder.Build();
 
-// Mapear endpoints
+// Map endpoints
 var accounts = app.NewVersionedApi("accounts");
 accounts.MapAccountsApiV1();
 
@@ -518,7 +518,7 @@ app.Run();
 
 ---
 
-## 📊 Diagrama de Flujo de Domain Events
+## 📊 Domain Events Flow
 
 ```
 ┌─────────────┐
@@ -579,25 +579,25 @@ app.Run();
 
 ---
 
-## ✅ Verificación
+## ✅ Verification
 
-### Ejecutar el proyecto
+### Run the project
 
 ```bash
 dotnet run --project src/uSLearn.AppHost
 ```
 
-### Comprobaciones:
+### Checks:
 
-1. ✅ Dashboard de Aspire muestra `apiservice` corriendo
-2. ✅ Base de datos SQL Server conectada
-3. ✅ Migraciones aplicadas automáticamente
-4. ✅ OpenAPI + interfaz Scalar disponibles en desarrollo (`/scalar/v1`)
-5. ✅ Endpoints de la API funcionando
+1. ✅ The Aspire dashboard shows `apiservice` running
+2. ✅ SQL Server database connected
+3. ✅ Migrations applied automatically
+4. ✅ OpenAPI + Scalar UI available in development (`/scalar/v1`)
+5. ✅ API endpoints working
 
-### Pruebas de API
+### API tests
 
-**Crear organización:**
+**Create organization:**
 ```bash
 PUT https://localhost:7xxx/api/accounts
 Content-Type: application/json
@@ -616,34 +616,34 @@ Content-Type: application/json
 }
 ```
 
-**Respuesta esperada:**
+**Expected response:**
 - Status: `200 OK`
-- Logs: Evento `OrganizationCreatedDomainEvent` despachado
-- Base de datos: Registro creado en `account.Organization`
+- Logs: `OrganizationCreatedDomainEvent` dispatched
+- Database: row created in `account.Organization`
 
-**Obtener organización:**
+**Get organization:**
 ```bash
 GET https://localhost:7xxx/api/accounts/{id}
 ```
 
-**Listar organizaciones:**
+**List organizations:**
 ```bash
 GET https://localhost:7xxx/api/accounts
 ```
 
 ---
 
-## 🧪 Código Relevante
+## 🧪 Relevant Code
 
-### Flujo Completo de Creación
+### End-to-end creation flow
 
-1. **API recibe petición**
+1. **The API receives the request**
 ```csharp
 // AccountsApi.cs
 api.MapPut("/", CreateOrganizationAsync);
 ```
 
-2. **Se crea el comando**
+2. **The command is created**
 ```csharp
 var command = new CreateOrganizationCommand(
     request.TaxIdNumber,
@@ -652,18 +652,18 @@ var command = new CreateOrganizationCommand(
 );
 ```
 
-3. **MediatR ejecuta el handler**
+3. **MediatR runs the handler**
 ```csharp
 var result = await services.Mediator.Send(command);
 ```
 
-4. **Handler crea el agregado**
+4. **The handler creates the aggregate**
 ```csharp
 var organization = Organization.Create(name, legalName, address, ...);
 _organizationRepository.Add(organization);
 ```
 
-5. **Agregado añade evento de dominio**
+5. **The aggregate adds the domain event**
 ```csharp
 private void AddOrganizationCreatedDomainEvent()
 {
@@ -672,14 +672,14 @@ private void AddOrganizationCreatedDomainEvent()
 }
 ```
 
-6. **SaveEntitiesAsync despacha eventos**
+6. **SaveEntitiesAsync dispatches the events**
 ```csharp
 public async Task<bool> SaveEntitiesAsync(CancellationToken cancellationToken = default)
 {
-    // Eventos se despachan ANTES del commit
+    // Events are dispatched BEFORE the commit
     await _mediator.DispatchDomainEventsAsync(this);
     
-    // Luego se persiste en la DB
+    // Then everything is persisted
     await base.SaveChangesAsync(cancellationToken);
     
     return true;
@@ -688,30 +688,30 @@ public async Task<bool> SaveEntitiesAsync(CancellationToken cancellationToken = 
 
 ---
 
-## 🔮 Consideraciones Futuras
+## 🔮 Future Considerations
 
-### Stage.03: Integration Events + Idempotency
+### Stage.03: Integration events + idempotency
 
-En la próxima etapa se añadirá:
+The next stage adds:
 
-1. **Integration Events**
-   - Publicar `OrganizationCreatedIntegrationEvent` a un message broker
-   - Otros servicios podrán suscribirse a estos eventos
-   - Comunicación asíncrona entre bounded contexts
+1. **Integration events**
+   - Publish `OrganizationCreatedIntegrationEvent` to a message broker
+   - Other services can subscribe to these events
+   - Asynchronous communication between bounded contexts
 
-2. **Outbox Pattern**
-   - Tabla `IntegrationEventLog` para garantizar entrega
-   - Publicación de eventos mediante un proceso background
-   - Consistencia eventual entre servicios
+2. **Outbox pattern**
+   - `IntegrationEventLog` table to make publishing reliable
+   - Events published only after the commit
+   - Eventual consistency between services
 
-3. **Idempotent Event Handlers**
-   - Evitar procesamiento duplicado de eventos
-   - Tabla de `ProcessedEvents` para tracking
-   - Garantías at-least-once delivery
+3. **Idempotent event handlers**
+   - Avoid processing the same event twice
+   - A processed-events table for tracking
+   - At-least-once delivery semantics
 
-### Extensibilidad de Domain Events
+### Extending domain events
 
-Actualmente no hay handlers de `OrganizationCreatedDomainEvent`, pero se pueden añadir fácilmente:
+There are no `OrganizationCreatedDomainEvent` handlers yet, but they are easy to add:
 
 ```csharp
 public class OrganizationCreatedDomainEventHandler 
@@ -719,63 +719,63 @@ public class OrganizationCreatedDomainEventHandler
 {
     public async Task Handle(OrganizationCreatedDomainEvent notification, ...)
     {
-        // Crear usuario admin por defecto
-        // Enviar email de bienvenida
-        // Inicializar configuración
+        // Create a default admin user
+        // Send a welcome email
+        // Initialize configuration
         // ...
     }
 }
 ```
 
-MediatR automáticamente ejecutará todos los handlers registrados.
+MediatR runs every registered handler automatically.
 
-### Preparación para Microservicios
+### Getting ready for microservices
 
-Esta estructura está lista para:
-- Añadir nuevos agregados (User, Subscription, etc.)
-- Crear nuevos microservicios con la misma estructura
-- Comunicarse mediante Integration Events
-- Aplicar Event Sourcing si es necesario
+This structure is ready to:
+- Add new aggregates (User, Subscription, etc.)
+- Create new microservices with the same structure
+- Communicate through integration events
+- Apply event sourcing if needed
 
 ---
 
-## 📚 Recursos Adicionales
+## 📚 Additional Resources
 
-- [Domain Events Pattern - Microsoft](https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/domain-events-design-implementation)
-- [MediatR Documentation](https://github.com/jbogard/MediatR)
+- [Domain events pattern - Microsoft](https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/domain-events-design-implementation)
+- [MediatR](https://github.com/jbogard/MediatR)
 - [Entity Framework Core](https://learn.microsoft.com/en-us/ef/core/)
-- [CQRS Pattern](https://learn.microsoft.com/en-us/azure/architecture/patterns/cqrs)
-- [Repository Pattern](https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/infrastructure-persistence-layer-design)
+- [CQRS pattern](https://learn.microsoft.com/en-us/azure/architecture/patterns/cqrs)
+- [Repository pattern](https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/infrastructure-persistence-layer-design)
 
 ---
 
-## 🧩 Próximos Pasos
+## 🧩 Next Steps
 
-➡️ **Stage.03**: Eventos de Integración + Idempotencia
+➡️ **Stage.03**: Integration events + idempotency
 
-En la siguiente etapa se introducirán:
-- Integration Events para comunicación entre servicios
-- Message broker (RabbitMQ/Azure Service Bus)
-- Outbox pattern para consistencia eventual
+The next stage introduces:
+- Integration events for service-to-service communication
+- A message broker (RabbitMQ)
+- The outbox pattern for eventual consistency
 - Idempotent consumers
-- Abstracción `EventBus` como building block compartido
+- An `EventBus` abstraction as a shared building block
 
 ---
 
-## 📝 Resumen
+## 📝 Summary
 
-En esta etapa se ha logrado:
+This stage delivers:
 
-✅ Microservicio Accounts con arquitectura DDD  
-✅ Domain Events implementados  
-✅ MediatR para despacho in-process  
-✅ Entity Framework Core con migraciones  
-✅ Patrón Repository + Unit of Work  
-✅ CQRS básico (Commands/Queries separados)  
-✅ Minimal APIs con versionado  
-✅ Logging pipeline con MediatR behaviors  
-✅ Agregado Organization con validaciones  
-✅ Value Objects (Address)  
-✅ Eventos despachados en la misma transacción  
+✅ Accounts microservice with a DDD architecture  
+✅ Domain events  
+✅ MediatR for in-process dispatching  
+✅ Entity Framework Core with migrations  
+✅ Repository + Unit of Work patterns  
+✅ Basic CQRS (separate commands and queries)  
+✅ Versioned minimal APIs  
+✅ Logging pipeline with MediatR behaviors  
+✅ Organization aggregate with validation  
+✅ Value objects (Address)  
+✅ Events dispatched within the same unit of work  
 
-**Resultado**: Un microservicio funcional con arquitectura rica en dominio, listo para evolucionar hacia comunicación distribuida mediante Integration Events en la siguiente etapa.
+**Result**: a working microservice with a rich domain model, ready to evolve into distributed communication through integration events in the next stage.
