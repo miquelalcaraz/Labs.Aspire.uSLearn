@@ -1,5 +1,8 @@
 # Stage.03-4 - Resilient Transactions
 
+> [!NOTE]
+> **Historical stage context.** This document describes the transaction changes introduced in Stage.03-4. Its Accounts retry limitation refers to that stage: the current `TransactionBehavior` clears tracked state on retries and publishes integration events outside the execution strategy. See the [current source](../src/uSLearn.Accounts.API/Application/Behaviors/TransactionBehavior.cs) and [README](../README.md#️-project-status) for the latest implementation and remaining delivery limitations.
+
 ## 🎯 Goal
 
 Make integration event processing in `Identity.API` **atomic and resilient**: creating the tenant, creating the admin user and recording idempotency must be committed together or not at all, and transient SQL Server failures (deadlocks, timeouts) must be retried automatically.

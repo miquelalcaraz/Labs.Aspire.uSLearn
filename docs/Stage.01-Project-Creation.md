@@ -1,5 +1,8 @@
 # Stage.01 - Base Project Creation
 
+> [!NOTE]
+> **Historical stage context.** This document describes the initial starter-template stage. The `Aspire.uSLearn.*` project names and `/weatherforecast` example belong to that snapshot. Later stages rename the projects and replace the sample backend. For current paths and startup instructions, see [Running the Project](../README.md#-running-the-project).
+
 ## 🎯 Stage Goal
 
 Create the base structure of the project using **.NET Aspire** as the orchestrator, laying the foundations for a microservices architecture with:
