@@ -9,6 +9,15 @@ A **microservices** reference application built with **.NET 10** and **.NET Aspi
 
 Rather than presenting a finished product, this repository demonstrates **how a distributed architecture evolves through explicit design decisions**. Each stage introduces a concrete problem, an implementation, and documented trade-offs. You can explore the latest implementation on `main` or follow its evolution through the `stages/*` branches.
 
+> [!IMPORTANT]
+> **Educational reference — not production-ready**
+>
+> This repository contains code, configuration and documentation intended for learning and experimentation. Examples may deliberately simplify or omit requirements needed in production systems.
+>
+> Do not deploy or incorporate these examples into real-world solutions without independent review, adaptation and testing, including security, reliability and data protection requirements.
+>
+> Anyone choosing to use this material is responsible for assessing its suitability and for their implementation, deployment and operation. It is provided “as is”, without warranties, under the terms and limitations of liability set out in the [MIT License](LICENSE).
+
 **Start here:** [Architecture overview](#-overview) · [Key design decisions](#-key-design-decisions) · [Stage-by-stage documentation](#-documentation) · [Run locally](#-running-the-project)
 
 > [!NOTE]
@@ -39,7 +48,7 @@ It is meant to be:
 
 - 📚 a learning guide
 - 🧪 a technical sandbox
-- 🧱 a reusable foundation for real projects
+- 🧱 a reference for exploring architectural patterns and trade-offs
 
 ---
 
