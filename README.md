@@ -9,14 +9,7 @@ A **microservices** reference application built with **.NET 10** and **.NET Aspi
 
 Rather than presenting a finished product, this repository demonstrates **how a distributed architecture evolves through explicit design decisions**. Each stage introduces a concrete problem, an implementation, and documented trade-offs. You can explore the latest implementation on `main` or follow its evolution through the `stages/*` branches.
 
-> [!IMPORTANT]
-> **Educational reference — not production-ready**
->
-> This repository contains code, configuration and documentation intended for learning and experimentation. Examples may deliberately simplify or omit requirements needed in production systems.
->
-> Do not deploy or incorporate these examples into real-world solutions without independent review, adaptation and testing, including security, reliability and data protection requirements.
->
-> Anyone choosing to use this material is responsible for assessing its suitability and for their implementation, deployment and operation. It is provided “as is”, without warranties, under the terms and limitations of liability set out in the [MIT License](LICENSE).
+*Educational reference; not intended for direct production use. See [scope and limitations](#️-project-status).*
 
 **Start here:** [Architecture overview](#-overview) · [Key design decisions](#-key-design-decisions) · [Stage-by-stage documentation](#-documentation) · [Run locally](#-running-the-project)
 
@@ -225,7 +218,9 @@ The same requests are available in [`Aspire.uSLearn.ApiService.http`](src/uSLear
 
 ## ⚠️ Project Status
 
-The project is under incremental construction. It isn't meant to be a final architecture but an **evolving reference** that shows real trade-offs. The configuration (container credentials, etc.) is intended for local development only.
+The project is an **evolving educational reference** for learning and experimentation. Code, configuration and documentation may simplify or omit production requirements, and the configuration is intended for local development only.
+
+Before using any part in a real-world solution, independently review, adapt and test it for your security, reliability and data protection requirements. You are responsible for assessing its suitability and for your implementation, deployment and operation.
 
 Known delivery limitations in the current code:
 
@@ -244,7 +239,9 @@ See [architectural patterns](docs/Stage.03-Architectural-Patterns.md) and [resil
 
 ## 📄 License
 
-Distributed under the [MIT](LICENSE) license. The parts derived from [dotnet/eShop](https://github.com/dotnet/eShop) keep the copyright of the .NET Foundation and Contributors, also under MIT.
+Provided “as is”, without warranties, under the terms and limitations of liability in the [MIT License](LICENSE).
+
+The parts derived from [dotnet/eShop](https://github.com/dotnet/eShop) keep the copyright of the .NET Foundation and Contributors, also under MIT.
 
 ## 🤝 Contributing
 
