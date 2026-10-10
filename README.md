@@ -9,8 +9,6 @@ A **microservices** reference application built with **.NET 10** and **.NET Aspi
 
 Rather than presenting a finished product, this repository demonstrates **how a distributed architecture evolves through explicit design decisions**. Each stage introduces a concrete problem, an implementation, and documented trade-offs. You can explore the latest implementation on `main` or follow its evolution through the `stages/*` branches.
 
-![Aspire dashboard showing the local application resources](docs/images/aspire-dashboard-resources.png)
-
 **Start here:** [Architecture overview](#-overview) · [Key design decisions](#-key-design-decisions) · [Stage-by-stage documentation](#-documentation) · [Run locally](#-running-the-project)
 
 > [!NOTE]
@@ -181,6 +179,8 @@ The AppHost starts:
 ### Try it out
 
 **1. Open the Aspire dashboard** and check that every resource is running. Click the `apiservice` URL to open the Accounts API.
+
+![Aspire dashboard with every resource running](docs/images/aspire-dashboard-resources.png)
 
 **2. Create an organization** from the Scalar API reference (`/scalar/v1`): `PUT /api/accounts` with `?api-version=1.0` and a non-empty GUID in the `x-requestid` header. To check command idempotency, resend the same payload with the **same GUID**; it should not create a second organization.
 
