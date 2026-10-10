@@ -7,6 +7,10 @@
 
 A **microservices** reference application built with **.NET 10** and **.NET Aspire**, used as a hands-on lab to explore modern distributed architecture patterns: DDD, CQRS, domain and integration events, idempotency and observability.
 
+Rather than presenting a finished product, this repository demonstrates **how a distributed architecture evolves through explicit design decisions**. Each stage introduces a concrete problem, an implementation, and documented trade-offs. You can explore the latest implementation on `main` or follow its evolution through the `stages/*` branches.
+
+**Start here:** [Architecture overview](#-overview) · [Key design decisions](#-key-design-decisions) · [Stage-by-stage documentation](#-documentation) · [Run locally](#-running-the-project)
+
 > [!NOTE]
 > **Based on [dotnet/eShop](https://github.com/dotnet/eShop).**
 > The architecture and many of the building blocks (EventBus, EventBusRabbitMQ, IntegrationEventLogEF, domain SeedWork, `IdentifiedCommand`, `TransactionBehavior`, `ResilientTransaction`…) follow the patterns of Microsoft's official reference application. This repository **rebuilds them step by step** on its own domain, documenting the reasoning behind each decision and adding variations (e.g. idempotent event handlers, resilient transactions in integration handlers).
@@ -61,6 +65,23 @@ It is meant to be:
 - Decoupled communication through events
 - Observability from day one
 - Incremental evolution, no *big bang architecture*
+
+---
+
+## 🔎 Key Design Decisions
+
+The documentation explains not only *what* was implemented, but also *why*, including constraints and remaining limitations.
+
+| Decision | Rationale and implementation |
+| --- | --- |
+| Separate Accounts and Identity services | [Overview](#-overview) — independent responsibilities connected through integration events |
+| Domain events vs. integration events | [Stage.02](docs/Stage.02-Domain-Events.md) and [Stage.03-1](docs/Stage.03-1-Integration-Events.md) |
+| Transactional outbox and eventual consistency | [Architectural patterns](docs/Stage.03-Architectural-Patterns.md) — includes delivery limitations |
+| Command and consumer idempotency | [Stage.03-2](docs/Stage.03-2-Idempotency.md) and [Stage.03-3](docs/Stage.03-3-Idempotency-Handler.md) |
+| Resilient database transactions | [Stage.03-4](docs/Stage.03-4-Resilient-Transactions.md) |
+| Centralized, vendor-neutral telemetry | [Stage.04-3](docs/Stage.04-3-Telemetry.md) — OpenTelemetry and trace propagation through RabbitMQ |
+
+These are **learning-stage design choices**, not claims of production readiness. See [Project Status](#️-project-status) for scope and limitations.
 
 ---
 
