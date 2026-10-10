@@ -154,19 +154,19 @@ The AppHost starts:
 
 **1. Open the Aspire dashboard** and check that every resource is running. Click the `apiservice` URL to open the Accounts API.
 
-![Aspire dashboard with every resource running](img/aspire-dashboard-resources.png)
+![Aspire dashboard with every resource running](docs/images/aspire-dashboard-resources.png)
 
 **2. Create an organization** from the Scalar API reference (`/scalar/v1`): `PUT /api/accounts` with an `x-requestid` header. Sending the same request again with the same `x-requestid` doesn't create a duplicate.
 
-![Creating an organization with PUT /api/accounts in Scalar](img/scalar-put-create-organization.png)
+![Creating an organization with PUT /api/accounts in Scalar](docs/images/scalar-put-create-organization.png)
 
 **3. List the organizations** with `GET /api/accounts`…
 
-![Listing organizations with GET /api/accounts](img/scalar-get-organizations.png)
+![Listing organizations with GET /api/accounts](docs/images/scalar-get-organizations.png)
 
 **4. …or get one by id** with `GET /api/accounts/{id}`.
 
-![Getting an organization with GET /api/accounts/{id}](img/scalar-get-organization-by-id.png)
+![Getting an organization with GET /api/accounts/{id}](docs/images/scalar-get-organization-by-id.png)
 
 Creating an organization publishes `OrganizationCreatedIntegrationEvent`; `Identity.API` consumes it and creates the tenant and its admin user. In the dashboard's **Traces** view, the whole flow appears as a single trace, from the HTTP request to the consumer in `identity`.
 
