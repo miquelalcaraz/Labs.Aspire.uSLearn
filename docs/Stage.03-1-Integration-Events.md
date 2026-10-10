@@ -1,5 +1,8 @@
 # Stage.03-1 - Integration Events
 
+> [!NOTE]
+> **Historical stage context.** This document describes Stage.03-1: direct publication to RabbitMQ and a logging-only Identity consumer. [Stage.03-2](Stage.03-2-Idempotency.md) introduces the outbox, and [Stage.03-3](Stage.03-3-Idempotency-Handler.md) adds consumer business logic. Use the [README](../README.md#-running-the-project) for the current API verification steps.
+
 ## 🎯 Stage Goal
 
 Implement asynchronous communication between microservices through **integration events**, so that services react to domain changes in a decoupled way, using **RabbitMQ** as the message broker.
@@ -199,7 +202,7 @@ public class OrganizationCreatedIntegrationEventHandler
 }
 ```
 
-**Current state:** a basic log to confirm the event is received. Business logic arrives in later stages.
+**State at Stage.03-1:** a basic log to confirm the event is received. Business logic arrives in later stages.
 
 #### Subscription in Identity.API
 ```csharp

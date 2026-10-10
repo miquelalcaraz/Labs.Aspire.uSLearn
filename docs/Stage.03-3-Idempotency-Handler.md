@@ -1,5 +1,8 @@
 # Stage.03-3 - Idempotent Event Handlers
 
+> [!NOTE]
+> **Historical stage context.** This document describes Stage.03-3, where tenant/user repositories are in memory and the processing steps are not yet atomic. [Stage.03-4](Stage.03-4-Resilient-Transactions.md) replaces those repositories with EF Core and commits business changes and the idempotency record in one resilient transaction. The snippets below preserve the earlier stage for comparison.
+
 ## 🎯 Goal
 
 Implement idempotency at the handler level so that integration events are never processed more than once by the same handler, avoiding duplicate data and unwanted behavior in the distributed system.
