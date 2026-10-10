@@ -9,6 +9,8 @@ A **microservices** reference application built with **.NET 10** and **.NET Aspi
 
 Rather than presenting a finished product, this repository demonstrates **how a distributed architecture evolves through explicit design decisions**. Each stage introduces a concrete problem, an implementation, and documented trade-offs. You can explore the latest implementation on `main` or follow its evolution through the `stages/*` branches.
 
+![Aspire dashboard showing the local application resources](docs/images/aspire-dashboard-resources.png)
+
 **Start here:** [Architecture overview](#-overview) · [Key design decisions](#-key-design-decisions) · [Stage-by-stage documentation](#-documentation) · [Run locally](#-running-the-project)
 
 > [!NOTE]
@@ -132,6 +134,9 @@ docs/                              → Detailed documentation for each stage
 
 Each stage is documented in [`/docs`](docs): goal, architectural decisions, added structure, relevant code and future considerations.
 
+> [!NOTE]
+> **Read stage documents as historical snapshots.** Their snippets, project names and verification steps describe that stage, not necessarily the latest implementation. For current project paths and startup commands, use this README and the code on the branch you checked out. Stage.01 uses the original `Aspire.uSLearn.*` names; Stage.03-1 publishes directly to RabbitMQ; Stage.03-3 uses in-memory tenant/user repositories. Later stages replace those implementations.
+
 The code for each stage lives in its own branch (`stages/stage-01`, `stages/stage-02`, …, `stages/stage-04.3`), and every branch includes all the previous ones. The documentation is kept up to date in `main`.
 
 | Document | Content |
@@ -155,13 +160,15 @@ The code for each stage lives in its own branch (`stages/stage-01`, `stages/stag
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Podman) — **required**: Aspire runs SQL Server, RabbitMQ and Redis as containers
-- IDE: Visual Studio 2022+, Rider or VS Code with C# Dev Kit
+- Optional IDE: a version of Visual Studio or Rider that supports .NET 10, or VS Code with C# Dev Kit
 
 ### Run with Aspire
 
 ```bash
 git clone https://github.com/miquelalcaraz/Labs.Aspire.uSLearn.git
 cd Labs.Aspire.uSLearn
+dotnet restore uSLearn.slnx
+dotnet build uSLearn.slnx
 dotnet run --project src/uSLearn.AppHost
 ```
 
@@ -175,9 +182,7 @@ The AppHost starts:
 
 **1. Open the Aspire dashboard** and check that every resource is running. Click the `apiservice` URL to open the Accounts API.
 
-![Aspire dashboard with every resource running](docs/images/aspire-dashboard-resources.png)
-
-**2. Create an organization** from the Scalar API reference (`/scalar/v1`): `PUT /api/accounts` with an `x-requestid` header. Sending the same request again with the same `x-requestid` doesn't create a duplicate.
+**2. Create an organization** from the Scalar API reference (`/scalar/v1`): `PUT /api/accounts` with `?api-version=1.0` and a non-empty GUID in the `x-requestid` header. To check command idempotency, resend the same payload with the **same GUID**; it should not create a second organization.
 
 ![Creating an organization with PUT /api/accounts in Scalar](docs/images/scalar-put-create-organization.png)
 
@@ -190,6 +195,8 @@ The AppHost starts:
 ![Getting an organization with GET /api/accounts/{id}](docs/images/scalar-get-organization-by-id.png)
 
 Creating an organization publishes `OrganizationCreatedIntegrationEvent`; `Identity.API` consumes it and creates the tenant and its admin user. In the dashboard's **Traces** view, the whole flow appears as a single trace, from the HTTP request to the consumer in `identity`.
+
+When using the `.http` file, set `ApiService_HostAddress` to the Accounts API URL shown in your dashboard. Its `{{$guid}}` expression generates a new request ID for each execution; replace it with a fixed GUID when checking duplicate requests. Use a new GUID for each distinct create operation.
 
 The same requests are available in [`Aspire.uSLearn.ApiService.http`](src/uSLearn.Accounts.API/Aspire.uSLearn.ApiService.http) for Visual Studio / VS Code / Rider.
 
@@ -210,6 +217,14 @@ The same requests are available in [`Aspire.uSLearn.ApiService.http`](src/uSLear
 ## ⚠️ Project Status
 
 The project is under incremental construction. It isn't meant to be a final architecture but an **evolving reference** that shows real trade-offs. The configuration (container credentials, etc.) is intended for local development only.
+
+Known delivery limitations in the current code:
+
+- The outbox stores events in the database transaction and publishes after commit, but has no background dispatcher to recover unpublished or failed events.
+- RabbitMQ publish retries do not replace outbox recovery. The consumer acknowledges messages even when a handler throws; there is no configured dead-letter recovery flow.
+- Consumer idempotency and resilient SQL transactions protect the implemented processing path; they do not establish an end-to-end exactly-once delivery guarantee.
+
+See [architectural patterns](docs/Stage.03-Architectural-Patterns.md) and [resilient transactions](docs/Stage.03-4-Resilient-Transactions.md) for the reasoning and stage-specific limitations.
 
 ---
 
